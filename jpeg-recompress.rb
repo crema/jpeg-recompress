@@ -13,7 +13,7 @@ class JpegRecompress
     raise 'require dest=' unless args['dest']
 
     @dest = args['dest']
-    @db = ProgressDb.new(args.fetch('db','progress.db'))
+    @db = ProgressDb.new(args.fetch('db','recompress.db'))
     @thread = args.fetch('thread',4).to_i
     @dry = args['dry']
     @force = args['force']
