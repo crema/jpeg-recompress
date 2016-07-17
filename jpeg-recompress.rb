@@ -17,9 +17,12 @@ class JpegRecompress
     @thread = args.fetch('thread',4).to_i
     @dry = args['dry']
     @force = args['force']
+    @quality = args.fetch('quality', 0.966).to_f
 
     @find_files_complete = Concurrent::AtomicBoolean.new(false)
     @recompress_files_complete = Concurrent::AtomicBoolean.new(false)
+
+    @nuvo_images = Queue.new
   end
 
   def recompress
@@ -50,9 +53,10 @@ class JpegRecompress
 
   private
 
-  attr_reader :dest, :db, :force, :thread, :dry, :reduced,
+  attr_reader :dest, :db, :force, :thread, :dry, :quality,
               :find_files_complete, :recompress_files_complete, :start_time,
-              :start_recompressed_count
+              :start_recompressed_count,
+              :nuvo_images
 
   def print_progress
     elapsed_time =  Time.now.to_f - start_time
@@ -65,7 +69,7 @@ class JpegRecompress
     print "\r"
     print "recompress #{recomppressed_count}/#{count}(#{format('%.2f',recomppressed_count.to_f/count.to_f * 100)}%)/#{size.pretty}"
     print ", skip #{skip_sount}"
-    print ", #{recompressed_size.pretty}"
+    print ", #{recompressed_size.pretty}/#{size.pretty}"
     print ", reduce #{reduced_size.pretty}"
     print ", elapsed #{Time.at(elapsed_time).utc.strftime("%H:%M:%S")}"
     if remain_time.infinite?
@@ -81,7 +85,7 @@ class JpegRecompress
     subject
       .as_observable
       .select {|filename| ['.jpg','.jpeg'].include?(File.extname(filename).downcase)}
-      .buffer_with_count(1000)
+      .buffer_with_count(5000)
       .subscribe(
         lambda do |filenames|
           db.transaction do
@@ -90,7 +94,7 @@ class JpegRecompress
             end
           end
         end,
-        lambda {|err| raise err},
+        lambda {|err| puts err},
         lambda { find_files_complete.value = true }
       )
 
@@ -104,16 +108,16 @@ class JpegRecompress
     subject = RX::Subject.new
     subject
       .as_observable
-      .buffer_with_count(16)
+      .buffer_with_count(100)
       .subscribe(
         lambda do |filenames|
           sizes = Parallel.map(filenames, in_threads: thread) do |filename|
-            size = 0
+            size = nil
             begin
-              NuvoImage.process do |process|
+              nuvo_image do |process|
                 tempfile = Tempfile.new(File.basename(filename))
                 image = process.read(filename)
-                jpeg = process.jpeg(image, tempfile.path, quality: 0.966, search: 3, gray_ssim: false)
+                jpeg = process.jpeg(image, tempfile.path, quality: quality, search: 3, gray_ssim: false)
 
                 if jpeg.size < image.size
                   size = jpeg.size
@@ -121,22 +125,17 @@ class JpegRecompress
                 else
                   size = image.size
                 end
-                tempfile.delete
+                tempfile.unlink
               end
             rescue StandardError => e
               puts "\nfail #{filename}: #{e}"
               size = File.size(filename)
             end
             size
-          end
-
-          db.transaction do
-            filenames.each_with_index do |filename, i|
-              db.set_recompress_size(filename, sizes[i])
-            end
+            db.set_recompress_size(filename, size)
           end
         end,
-        lambda {|err| raise err},
+        lambda {|err| puts err},
         lambda {recompress_files_complete.value = true}
       )
 
@@ -146,6 +145,18 @@ class JpegRecompress
       end
     end
     subject.on_completed
+  end
+
+  def nuvo_image(&_block)
+    process = nil
+    if nuvo_images.empty?
+      process = NuvoImage::Process.new
+    else
+      process = nuvo_images.pop
+    end
+    yield process
+    process.clear
+    nuvo_images << process
   end
 
   def traversal_dir(dir)

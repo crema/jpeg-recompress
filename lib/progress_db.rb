@@ -3,18 +3,15 @@ require 'sqlite3'
 class ProgressDb
   def initialize(db)
     @db = SQLite3::Database.new(db)
-    @mutex = Mutex.new
     init_db
   end
 
-  attr_reader :mutex, :db
+  attr_reader :db
 
   def transaction
-    mutex.synchronize do
-      begin_transaction
-      yield
-      commit
-    end
+    begin_transaction
+    yield
+    commit
   end
 
   def insert(filename, size)
@@ -24,12 +21,10 @@ class ProgressDb
   end
 
   def reset_recompress_size_not_small
-    mutex.synchronize do
-      rows = execute <<-SQL
-        UPDATE images SET recompress_size = NULL WHERE original_size = recompress_size;
-      SQL
-      rows.first
-    end
+    rows = execute <<-SQL
+      UPDATE images SET recompress_size = NULL WHERE original_size = recompress_size;
+    SQL
+    rows.first
   end
 
   def set_recompress_size(filename, recompress_size)
@@ -39,32 +34,25 @@ class ProgressDb
   end
 
   def total_size
-    mutex.synchronize do
-      rows = execute <<-SQL
-          SELECT SUM(original_size), SUM(recompress_size), SUM(original_size - recompress_size) FROM images
-      SQL
-      rows.first
-    end
+    rows = execute <<-SQL
+        SELECT SUM(original_size), SUM(recompress_size), SUM(original_size - recompress_size) FROM images
+    SQL
+    rows.first
   end
 
   def total_count
-    mutex.synchronize do
-      rows = execute <<-SQL
-        SELECT COUNT(filename), SUM(recompress_size IS NOT NULL), SUM(recompress_size = original_size) FROM images
-      SQL
-      rows.first
-    end
+    rows = execute <<-SQL
+      SELECT COUNT(filename), SUM(recompress_size IS NOT NULL), SUM(recompress_size = original_size) FROM images
+    SQL
+    rows.first
   end
 
-  def find_not_recompress_each(batch_size = 1000)
+  def find_not_recompress_each(batch_size = 5000)
     offset = 0
     loop do
-      rows = []
-      mutex.synchronize do
-        rows = execute <<-SQL
-          SELECT filename, rowid FROM images WHERE rowid > #{offset} AND recompress_size IS NULL LIMIT #{batch_size}
-        SQL
-      end
+      rows = execute <<-SQL
+        SELECT filename, rowid FROM images WHERE rowid > #{offset} AND recompress_size IS NULL LIMIT #{batch_size}
+      SQL
       break if rows.empty?
 
       offset += rows.last.last
