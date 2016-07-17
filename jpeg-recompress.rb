@@ -19,7 +19,7 @@ class JpegRecompress
     @force = args['force']
     @quality = args.fetch('quality', 0.966).to_f
     @batch = args.fetch('batch', 5000).to_i
-    @before = Time.new(args.fetch('before', Time.now.to_s))
+    @before = Time.parse(args.fetch('before', Time.now.to_s))
 
     @find_files_complete = Concurrent::AtomicBoolean.new(false)
     @recompress_files_complete = Concurrent::AtomicBoolean.new(false)
