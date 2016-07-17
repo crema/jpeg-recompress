@@ -23,10 +23,15 @@ class JpegRecompress
   end
 
   def recompress
+    @start_time = Time.now.to_f
+
     if force
       puts 'reset recompress size not small'
       db.reset_recompress_size_not_small
     end
+
+    _, recomppressed_count, skip_sount = db.total_count.map {|c| c.to_i}
+    @start_recompressed_count = recomppressed_count
 
     find_files_thread = Thread.new {find_files}
     recompress_files_thread = Thread.new {recompress_files}
@@ -45,16 +50,29 @@ class JpegRecompress
 
   private
 
-  attr_reader :dest, :db, :force, :thread, :dry, :reduced, :find_files_complete, :recompress_files_complete
+  attr_reader :dest, :db, :force, :thread, :dry, :reduced,
+              :find_files_complete, :recompress_files_complete, :start_time,
+              :start_recompressed_count
 
   def print_progress
-    count_all = db.count_all.to_i
-    count_recomppressed = db.count_recompressed.to_i
-    count_skip = db.count_skip.to_i
+    elapsed_time =  Time.now.to_f - start_time
+
+    count, recomppressed_count, skip_sount = db.total_count.map {|c| c.to_i}
     size, recompressed_size, reduced_size = db.total_size.map {|s| Filesize.new(s)}
 
-    percent = count_recomppressed/count_all.to_f * 100
-    print "\rrecompress #{count_recomppressed}/#{count_all}(#{format('%.2f',percent)}%), skip #{count_skip}, #{recompressed_size.pretty}/#{size.pretty}, reduce #{reduced_size.pretty}"
+    remain_time = (count - recomppressed_count) / ((recomppressed_count - start_recompressed_count) / elapsed_time)
+
+    print "\r"
+    print "recompress #{recomppressed_count}/#{count}(#{format('%.2f',recomppressed_count.to_f/count.to_f * 100)}%)/#{size.pretty}"
+    print ", skip #{skip_sount}"
+    print ", #{recompressed_size.pretty}"
+    print ", reduce #{reduced_size.pretty}"
+    print ", elapsed #{Time.at(elapsed_time).utc.strftime("%H:%M:%S")}"
+    if remain_time.infinite?
+      print ", remain "
+    else
+      print ", remain #{Time.at(remain_time).utc.strftime("%H:%M:%S")}"
+    end
     print ' -- dry -- ' if dry
   end
 

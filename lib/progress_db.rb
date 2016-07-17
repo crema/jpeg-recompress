@@ -47,39 +47,12 @@ class ProgressDb
     end
   end
 
-  def count_all
+  def total_count
     mutex.synchronize do
       rows = execute <<-SQL
-        SELECT COUNT(filename) FROM images
+        SELECT COUNT(filename), SUM(recompress_size IS NOT NULL), SUM(recompress_size = original_size) FROM images
       SQL
-      rows.first.first
-    end
-  end
-
-  def count_skip
-    mutex.synchronize do
-      rows = execute <<-SQL
-        SELECT COUNT(filename) FROM images WHERE recompress_size = original_size
-      SQL
-      rows.first.first
-    end
-  end
-
-  def count_not_recompressed
-    mutex.synchronize do
-      rows = execute <<-SQL
-        SELECT COUNT(filename) FROM images WHERE recompress_size IS NULL
-      SQL
-      rows.first.first
-    end
-  end
-
-  def count_recompressed
-    mutex.synchronize do
-      rows = execute <<-SQL
-        SELECT COUNT(filename) FROM images WHERE recompress_size IS NOT NULL
-      SQL
-      rows.first.first
+      rows.first
     end
   end
 
