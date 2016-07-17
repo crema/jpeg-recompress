@@ -1,0 +1,35 @@
+GIT
+  remote: git://github.com/crema/RxRuby.git
+  revision: e493b321a7a9157a15ff6239f2cbe45cf2d1efec
+  specs:
+    Rx.rb (0.0.1)
+
+GIT
+  remote: git://github.com/crema/nuvo-image.git
+  revision: ac42f792ba4bce0b1853eb92eb730534a5a3b37d
+  specs:
+    nuvo-image (0.1.19)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    arel (7.0.0)
+    concurrent-ruby (1.0.2)
+    filesize (0.1.1)
+    parallel (1.8.0)
+    sqlite3 (1.3.11)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  Rx.rb!
+  arel
+  concurrent-ruby
+  filesize
+  nuvo-image!
+  parallel
+  sqlite3
+
+BUNDLED WITH
+   1.12.5
