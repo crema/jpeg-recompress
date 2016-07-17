@@ -2,7 +2,7 @@
 
 ## Requirement
 
-### nuvo-image 요구 사항 확인
+### nuvo-image
 https://github.com/crema/nuvo-image#requirement
 
 ### libsqlite3-dev
