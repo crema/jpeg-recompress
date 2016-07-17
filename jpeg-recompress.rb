@@ -18,6 +18,8 @@ class JpegRecompress
     @dry = args['dry']
     @force = args['force']
     @quality = args.fetch('quality', 0.966).to_f
+    @batch = args.fetch('batch', 5000).to_i
+    @before = Time.new(args.fetch('before', Time.now.to_s))
 
     @find_files_complete = Concurrent::AtomicBoolean.new(false)
     @recompress_files_complete = Concurrent::AtomicBoolean.new(false)
@@ -53,7 +55,7 @@ class JpegRecompress
 
   private
 
-  attr_reader :dest, :db, :force, :thread, :dry, :quality,
+  attr_reader :dest, :db, :force, :thread, :dry, :quality, :batch, :before,
               :find_files_complete, :recompress_files_complete, :start_time,
               :start_recompressed_count,
               :nuvo_images
@@ -65,6 +67,8 @@ class JpegRecompress
     size, recompressed_size, reduced_size = db.total_size.map {|s| Filesize.new(s)}
 
     remain_time = (count - recomppressed_count) / ((recomppressed_count - start_recompressed_count) / elapsed_time)
+
+    remain_time = 0.0 if remain_time.nan?
 
     print "\r"
     print "recompress #{recomppressed_count}/#{count}(#{format('%.2f',recomppressed_count.to_f/count.to_f * 100)}%)/#{size.pretty}"
@@ -84,8 +88,9 @@ class JpegRecompress
     subject = RX::Subject.new
     subject
       .as_observable
+      .select {|filename| File.mtime(filename) < before}
       .select {|filename| ['.jpg','.jpeg'].include?(File.extname(filename).downcase)}
-      .buffer_with_count(5000)
+      .buffer_with_count(batch)
       .subscribe(
         lambda do |filenames|
           db.transaction do
@@ -108,7 +113,7 @@ class JpegRecompress
     subject = RX::Subject.new
     subject
       .as_observable
-      .buffer_with_count(100)
+      .buffer_with_count(batch)
       .subscribe(
         lambda do |filenames|
           sizes = Parallel.map(filenames, in_threads: thread) do |filename|
@@ -139,8 +144,8 @@ class JpegRecompress
         lambda {recompress_files_complete.value = true}
       )
 
-    while find_files_complete.value == false || db.count_not_recompressed > 0
-      db.find_not_recompress_each do |filename|
+    while find_files_complete.value == false || db.not_recompressed_count > 0
+      db.find_not_recompress_each(batch) do |filename|
         subject.on_next(filename)
       end
     end

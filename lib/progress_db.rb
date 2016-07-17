@@ -47,13 +47,20 @@ class ProgressDb
     rows.first
   end
 
+  def not_recompressed_count
+    rows = execute <<-SQL
+      SELECT COUNT(filename) FROM images where recompress_size IS NULL
+    SQL
+    rows.first.first
+  end
+
   def find_not_recompress_each(batch_size = 5000)
     offset = 0
     loop do
       rows = execute <<-SQL
         SELECT filename, rowid FROM images WHERE rowid > #{offset} AND recompress_size IS NULL LIMIT #{batch_size}
       SQL
-      break if rows.empty?
+      return if rows.empty?
 
       offset += rows.last.last
       rows.each do |row|
