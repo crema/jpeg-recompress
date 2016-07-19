@@ -16,9 +16,8 @@ class JpegRecompress
     @db = ProgressDb.new(args.fetch('db','recompress.db'))
     @thread = args.fetch('thread',4).to_i
     @dry = args['dry']
-    @force = args['force']
     @quality = args.fetch('quality', 0.966).to_f
-    @batch = args.fetch('batch', 5000).to_i
+    @batch = args.fetch('batch', 1000).to_i
     @before = Time.parse(args.fetch('before', Time.now.to_s))
     @after = Time.parse(args.fetch('after', Time.new(0).to_s))
 
@@ -31,9 +30,10 @@ class JpegRecompress
   def recompress
     @start_time = Time.now.to_f
 
-    if force
-      puts 'reset recompress size not small'
-      db.reset_recompress_size_not_small
+    unless dry
+      puts '-- warning! wet run --'
+      print 'sure ?(y/N)'
+      exit unless STDIN.gets.chomp.downcase == 'y'
     end
 
     _, recomppressed_count, skip_sount = db.total_count.map {|c| c.to_i}
@@ -56,7 +56,7 @@ class JpegRecompress
 
   private
 
-  attr_reader :dest, :db, :force, :thread, :dry, :quality, :batch, :before, :after,
+  attr_reader :dest, :db, :thread, :dry, :quality, :batch, :before, :after,
               :find_files_complete, :recompress_files_complete, :start_time,
               :start_recompressed_count,
               :nuvo_images
@@ -72,6 +72,7 @@ class JpegRecompress
     remain_time = 0.0 if remain_time.nan?
 
     str = ''
+    str << ' -- dry -- ' if dry
     str << "recompress #{recomppressed_count}/#{count}(#{format('%.2f',recomppressed_count.to_f/count.to_f * 100)}%)/#{size.pretty}"
     str << ", skip #{skip_sount}"
     str << ", #{recompressed_size.pretty}/#{size.pretty}"
@@ -82,7 +83,7 @@ class JpegRecompress
     else
       str << ", remain #{Time.at(remain_time).utc.strftime("%H:%M:%S")}"
     end
-    str << ' -- dry -- ' if dry
+    str << ' -- find files complete' if find_files_complete.value == true
     print "\r#{str}"
   end
 
