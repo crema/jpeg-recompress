@@ -20,6 +20,7 @@ class JpegRecompress
     @quality = args.fetch('quality', 0.966).to_f
     @batch = args.fetch('batch', 5000).to_i
     @before = Time.parse(args.fetch('before', Time.now.to_s))
+    @after = Time.parse(args.fetch('after', Time.new(0).to_s))
 
     @find_files_complete = Concurrent::AtomicBoolean.new(false)
     @recompress_files_complete = Concurrent::AtomicBoolean.new(false)
@@ -55,7 +56,7 @@ class JpegRecompress
 
   private
 
-  attr_reader :dest, :db, :force, :thread, :dry, :quality, :batch, :before,
+  attr_reader :dest, :db, :force, :thread, :dry, :quality, :batch, :before, :after,
               :find_files_complete, :recompress_files_complete, :start_time,
               :start_recompressed_count,
               :nuvo_images
@@ -88,8 +89,8 @@ class JpegRecompress
     subject = RX::Subject.new
     subject
       .as_observable
-      .select {|filename| File.mtime(filename) < before}
       .select {|filename| ['.jpg','.jpeg'].include?(File.extname(filename).downcase)}
+      .select {|filename| mtime = File.mtime(filename); after > mtime && mtime < before }
       .buffer_with_count(batch)
       .subscribe(
         lambda do |filenames|

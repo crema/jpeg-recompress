@@ -26,3 +26,4 @@ bundle exec ruby jpeg-recompress.rb dest=/mnt/1 thread=4 db=recompress.db dry=tr
 - batch= 배치 사이즈, 기본값 5000
 - quality= 목표 ssim 값. 기본값 0.966
 - before= 해당 시간보다 오래된 파일만 적용. 기본값 now 
+- after= 해당 시간보다 새로운 파일만 적용. 기본값 Time.new(0) 
