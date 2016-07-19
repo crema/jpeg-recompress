@@ -91,7 +91,7 @@ class JpegRecompress
     subject
       .as_observable
       .select {|filename| ['.jpg','.jpeg'].include?(File.extname(filename).downcase)}
-      .select {|filename| mtime = File.mtime(filename); after > mtime && mtime < before }
+      .select {|filename| File.mtime(filename).between?(after, before) }
       .buffer_with_count(batch)
       .subscribe(
         lambda do |filenames|
