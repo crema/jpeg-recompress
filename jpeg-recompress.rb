@@ -64,17 +64,19 @@ class JpegRecompress
   def print_progress
     elapsed_time =  Time.now.to_f - start_time
 
-    count, recomppressed_count, skip_sount = db.total_count.map {|c| c.to_i}
+    count, recomppressed_count, skip_count = db.total_count.map {|c| c.to_i}
     size, recompressed_size, reduced_size = db.total_size.map {|s| Filesize.new(s)}
 
     remain_time = (count - recomppressed_count) / ((recomppressed_count - start_recompressed_count) / elapsed_time)
-
     remain_time = 0.0 if remain_time.nan?
 
+    percent = recomppressed_count.to_f/count.to_f * 100
+    percent = 0.0 if percent.nan?
+
     str = ''
-    str << '-- dry -- ' if dry
-    str << "recompress #{recomppressed_count}/#{count}(#{format('%.2f',recomppressed_count.to_f/count.to_f * 100)}%)/#{size.pretty}"
-    str << ", skip #{skip_sount}"
+    str << '[dry] ' if dry
+    str << "recompress #{recomppressed_count}/#{count}(#{format('%.2f',percent)}%)"
+    str << ", skip #{skip_count}"
     str << ", #{recompressed_size.pretty}/#{size.pretty}"
     str << ", reduce #{reduced_size.pretty}"
     str << ", elapsed #{Time.at(elapsed_time).utc.strftime("%H:%M:%S")}"
