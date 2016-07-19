@@ -166,20 +166,14 @@ class JpegRecompress
     nuvo_images << process
   end
 
-  def traversal_dir(dir)
-    queue = Queue.new
-    queue << dir
-    while !queue.empty?
-      current_dir = queue.pop
-
-      Dir.entries(current_dir).each do |entry|
-        next if ['.','..'].include?(entry)
-        entry = File.join(current_dir, entry)
-        if File.directory?(entry)
-          queue << entry
-        else
-          yield entry if block_given?
-        end
+  def traversal_dir(dir, &block)
+    Dir.entries(dir).each do |entry|
+      next if ['.','..'].include?(entry)
+      entry = File.join(dir, entry)
+      if File.directory?(entry)
+        traversal_dir(entry, &block)
+      else
+        yield entry
       end
     end
   end
