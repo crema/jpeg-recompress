@@ -71,18 +71,19 @@ class JpegRecompress
 
     remain_time = 0.0 if remain_time.nan?
 
-    print "recompress #{recomppressed_count}/#{count}(#{format('%.2f',recomppressed_count.to_f/count.to_f * 100)}%)/#{size.pretty}"
-    print ", skip #{skip_sount}"
-    print ", #{recompressed_size.pretty}/#{size.pretty}"
-    print ", reduce #{reduced_size.pretty}"
-    print ", elapsed #{Time.at(elapsed_time).utc.strftime("%H:%M:%S")}"
+    str = ''
+    str << "recompress #{recomppressed_count}/#{count}(#{format('%.2f',recomppressed_count.to_f/count.to_f * 100)}%)/#{size.pretty}"
+    str << ", skip #{skip_sount}"
+    str << ", #{recompressed_size.pretty}/#{size.pretty}"
+    str << ", reduce #{reduced_size.pretty}"
+    str << ", elapsed #{Time.at(elapsed_time).utc.strftime("%H:%M:%S")}"
     if remain_time.infinite?
-      print ", remain "
+      str << ", remain "
     else
-      print ", remain #{Time.at(remain_time).utc.strftime("%H:%M:%S")}"
+      str << ", remain #{Time.at(remain_time).utc.strftime("%H:%M:%S")}"
     end
-    print ' -- dry -- ' if dry
-    print "\n"
+    str << ' -- dry -- ' if dry
+    print "\r#{str}"
   end
 
   def find_files
