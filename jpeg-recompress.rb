@@ -72,7 +72,7 @@ class JpegRecompress
     remain_time = 0.0 if remain_time.nan?
 
     str = ''
-    str << ' -- dry -- ' if dry
+    str << '-- dry -- ' if dry
     str << "recompress #{recomppressed_count}/#{count}(#{format('%.2f',recomppressed_count.to_f/count.to_f * 100)}%)/#{size.pretty}"
     str << ", skip #{skip_sount}"
     str << ", #{recompressed_size.pretty}/#{size.pretty}"
@@ -83,7 +83,7 @@ class JpegRecompress
     else
       str << ", remain #{Time.at(remain_time).utc.strftime("%H:%M:%S")}"
     end
-    str << ' -- find files complete' if find_files_complete.value == true
+    str << ', find files complete' if find_files_complete.value == true
     print "\r#{str}"
   end
 
