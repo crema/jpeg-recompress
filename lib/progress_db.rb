@@ -1,12 +1,22 @@
 require 'sqlite3'
 
 class ProgressDb
-  def initialize(db)
-    @db = SQLite3::Database.new(db)
-    init_db
+  def initialize
+    execute <<-SQL
+      CREATE TABLE IF NOT EXISTS images(
+        filename TEXT PRIMARY KEY,
+        original_size INTEGER,
+        recompressed_size INTEGER
+      );
+    SQL
+    execute <<-SQL
+      CREATE INDEX IF NOT EXISTS size_index ON images (original_size, recompressed_size);
+    SQL
   end
 
-  attr_reader :db
+  def clean
+    File.delete(database_file) if File.exist?(database_file)
+  end
 
   def transaction
     begin_transaction
@@ -20,45 +30,31 @@ class ProgressDb
     SQL
   end
 
-  def reset_recompress_size_not_small
-    rows = execute <<-SQL
-      UPDATE images SET recompress_size = NULL WHERE original_size = recompress_size;
-    SQL
-    rows.first
-  end
-
-  def set_recompress_size(filename, recompress_size)
+  def set_recompressed_size(filename, recompressed_size)
     execute <<-SQL
-      UPDATE images SET recompress_size = #{recompress_size} WHERE filename = "#{filename}";
+      UPDATE images SET recompressed_size = #{recompressed_size} WHERE filename = "#{filename}";
     SQL
   end
 
-  def total_size
+  def status
     rows = execute <<-SQL
-        SELECT SUM(original_size), SUM(recompress_size), SUM(original_size - recompress_size) FROM images
-    SQL
-    rows.first
-  end
-
-  def total_count
-    rows = execute <<-SQL
-      SELECT COUNT(filename), SUM(recompress_size IS NOT NULL), SUM(recompress_size = original_size) FROM images
+      SELECT COUNT(*), SUM(recompressed_size IS NOT NULL), SUM(recompressed_size = original_size), SUM(original_size), SUM(recompressed_size), SUM(original_size - recompressed_size) FROM images
     SQL
     rows.first
   end
 
   def not_recompressed_count
     rows = execute <<-SQL
-      SELECT COUNT(filename) FROM images where recompress_size IS NULL
+      SELECT COUNT(*) FROM images where recompressed_size IS NULL
     SQL
     rows.first.first
   end
 
-  def find_not_recompress_each(batch_size = 5000)
+  def find_not_recompressed_each(batch_size = 5000)
     offset = 0
     loop do
       rows = execute <<-SQL
-        SELECT filename, rowid FROM images WHERE rowid > #{offset} AND recompress_size IS NULL LIMIT #{batch_size}
+        SELECT filename, rowid FROM images WHERE rowid > #{offset} AND recompressed_size IS NULL LIMIT #{batch_size}
       SQL
       return if rows.empty?
 
@@ -70,6 +66,14 @@ class ProgressDb
   end
 
   private
+
+  def database
+    @database ||= SQLite3::Database.new(database_file)
+  end
+
+  def database_file
+    @database_file ||= File.join(File.dirname(__FILE__),'../progress.db')
+  end
 
   def begin_transaction
     execute <<-SQL
@@ -83,18 +87,8 @@ class ProgressDb
     SQL
   end
 
-  def init_db
-    execute <<-SQL
-      CREATE TABLE IF NOT EXISTS images(
-        filename TEXT PRIMARY KEY,
-        original_size INTEGER,
-        recompress_size INTEGER
-      );
-    SQL
-  end
-
   def execute(sql)
-    db.execute(sql)
+    database.execute(sql)
   end
 
 end
