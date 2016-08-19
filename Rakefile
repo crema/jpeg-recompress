@@ -1,16 +1,22 @@
 require 'jimson'
 require 'facter'
 require 'rake'
+require 'yaml'
 require_relative 'lib/progress_db'
 require_relative 'lib/jpeg_recompress'
 
 namespace :jpeg_recompress do
-  task :start, [:dry_run, :src_dir, :dest_dir, :tmp, :thread_count] do |t, args|
-    dry_run = args.fetch(:dry_run, true)
-    src_dir = args[:src_dir].to_s
-    dest_dir = args.fetch(:dest_dir, src_dir).to_s
-    tmp_dir = args.fetch(:tmp_dir, '/tmp').to_s
-    thread_count = args.fetch(:thread_count, Facter.value('processors')['count']).to_i
+  task :start do
+
+    config = YAML.load_file('config.yml')['jpeg_recompress']
+
+    dry_run = config.fetch('dry_run', true)
+    src_dir = config['src_dir'].to_s
+    dest_dir = config.fetch('dest_dir', src_dir).to_s
+    tmp_dir = config.fetch('tmp_dir', '/tmp').to_s
+    thread_count = config.fetch('thread_count', Facter.value('processors')['count']).to_i
+    before = config.fetch('before', Time.now).to_time
+    after = config.fetch('after', Time.parse('2000-01-01')).to_time
 
     if dry_run == false || dry_run.to_s.downcase == 'wet'
       STDERR.puts('WARNINIG! wet run. type wet')
@@ -36,11 +42,17 @@ namespace :jpeg_recompress do
       exit(1)
     end
 
-    JpegRecompress.new.run(dry_run,
-                           File.expand_path(src_dir),
-                           File.expand_path(dest_dir),
-                           File.expand_path(tmp_dir),
-                           thread_count)
+    FileUtils.mkdir_p(tmp_dir) unless Dir.exist?(tmp_dir)
+    FileUtils.mkdir_p(dest_dir)unless Dir.exist?(dest_dir)
+
+    JpegRecompress.new(dry_run: dry_run,
+                       src_dir: File.expand_path(src_dir),
+                       dest_dir: File.expand_path(dest_dir),
+                       tmp_dir: File.expand_path(tmp_dir),
+                       thread_count: thread_count,
+                       before: before,
+                       after: after).run
+
   end
 
   task :status do
