@@ -37,7 +37,7 @@ class JpegRecompress
   end
 
   def run
-    @start_time = Time.now.to_f
+    @start_time = Time.now
 
     Thread.new do
       run_server
@@ -52,6 +52,7 @@ class JpegRecompress
         recompress_files
       end
 
+      @complete_time = Time.now
       puts(status)
       puts('COMPLETE')
     end
@@ -65,7 +66,7 @@ class JpegRecompress
   end
 
   def status
-    elapsed_time =  Time.now.to_f - start_time
+    elapsed_time =  Time.now.to_f - start_time.to_f
 
     count, recomppressed_count, skip_count, size, recompressed_size, reduced_size  = database.status.map {|c| c.to_i}
 
@@ -77,12 +78,20 @@ class JpegRecompress
     percent = 0.0 if percent.nan?
 
     str = ''
-    str << '[dry run] ' if dry_run
+    str << '[DRY] ' if dry_run
+    str << "start #{start_time}"
+    if complete_time
+      str << ", complete #{complete_time}, elapsed #{Time.at(complete_time.to_f - start_time.to_f).utc.strftime("%H:%M:%S")}"
+    else
+      str << ", elapsed #{Time.at(elapsed_time).utc.strftime("%H:%M:%S")}"
+    end
+    str << "\n"
     str << "recompress #{recomppressed_count}/#{count}(#{format('%.2f',percent)}%)"
     str << ", skip #{skip_count}"
     str << ", #{recompressed_size.pretty}/#{size.pretty}"
     str << ", reduce #{reduced_size.pretty}"
-    str << ", elapsed #{Time.at(elapsed_time).utc.strftime("%H:%M:%S")}"
+
+
 
     str
   end
@@ -95,7 +104,7 @@ class JpegRecompress
   private
 
   attr_reader :dry_run, :src_dir, :dest_dir, :tmp_dir, :thread_count, :before, :after,
-              :stopped, :start_time, :find_files_complete, :recompress_files_complete,
+              :stopped, :start_time, :complete_time, :find_files_complete, :recompress_files_complete,
               :nuvo_images
 
 
