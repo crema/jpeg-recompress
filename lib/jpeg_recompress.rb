@@ -243,7 +243,7 @@ class JpegRecompress
     dirs = [[dir, File.stat(dir)]]
 
     until dirs.empty?
-      dirs.sort_by! {|dir| dir.last.atime }
+      dirs.sort_by! {|dir| dir.last.ctime }
       current_entry = dirs.pop
 
       entries = Dir.entries(current_entry.first).select do |entry|
