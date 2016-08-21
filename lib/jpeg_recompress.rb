@@ -215,6 +215,7 @@ class JpegRecompress
               STDOUT.print('.'.colorize(:green))
             else
               STDOUT.print('S'.colorize(:blue))
+              recompressed_size = original_size
             end
           end
           [src_filename, recompressed_size]
