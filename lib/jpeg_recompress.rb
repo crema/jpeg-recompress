@@ -86,6 +86,7 @@ class JpegRecompress
     count, recomppressed_count, skip_count, size, recompressed_size, reduced_size  = database.status.map {|c| c.to_i}
 
     size = Filesize.new(size)
+    reduced_percent = reduced_size.to_f / (recompressed_size + reduced_size).to_f * 100
     recompressed_size = Filesize.new(recompressed_size)
     processed_size = Filesize.new(recompressed_size + reduced_size)
     reduced_size = Filesize.new(reduced_size)
@@ -107,7 +108,7 @@ class JpegRecompress
     str << "recompress #{recomppressed_count}/#{count}(#{format('%.2f',percent)}%)"
     str << ", skip #{skip_count}"
     str << ", #{recompressed_size.pretty}/#{processed_size.pretty}/#{size.pretty}"
-    str << ", reduce #{reduced_size.pretty}(#{format('%.2f',reduced_size / (recompressed_size + reduced_size).to_f * 100)}%)"
+    str << ", reduce #{reduced_size.pretty}(#{format('%.2f',reduced_percent)}%)"
 
     str
   end
