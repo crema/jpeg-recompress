@@ -166,9 +166,6 @@ class JpegRecompress
         results = Parallel.map(filenames, in_threads: thread_count) do |src_filename|
           return [src_filename, nil] unless File.exist?(src_filename)
 
-          src_tmp_filename = File.join(tmp_dir, "tmp_#{tmp_count.increment}" + '.jpg')
-          FileUtils.cp(src_filename, src_tmp_filename)
-
           dest_tmp_filename = File.join(tmp_dir, "tmp_#{tmp_count.increment}" + '.jpg')
 
           recompressed_size = 0
@@ -178,7 +175,7 @@ class JpegRecompress
 
           begin
             nuvo_image do |process|
-              image = process.read(src_tmp_filename)
+              image = process.read(src_filename)
               jpeg = process.lossy(image, dest_tmp_filename, format: :jpeg, quality: :high)
 
               original_size = image.size
@@ -201,16 +198,15 @@ class JpegRecompress
                   if original_size > recompressed_size
                     FileUtils.cp(dest_tmp_filename, dest_filename)
                   else
-                    FileUtils.cp(src_tmp_filename, dest_filename)
+                    FileUtils.cp(src_filename, dest_filename)
                   end
                 end
               end
             end
           rescue StandardError => e
             STDERR.puts("\nfail #{src_filename}: #{e}")
-            original_size = recompressed_size = File.size(src_tmp_filename)
+            original_size = recompressed_size = File.size(src_filename)
           ensure
-            File.delete(src_tmp_filename) if File.exist?(src_tmp_filename)
             File.delete(dest_tmp_filename) if File.exist?(dest_tmp_filename)
             if original_size > recompressed_size
               STDOUT.puts("recompress #{filename}, #{original_size}->#{recompressed_size}, #{src_dir}->#{dest_dir}")
@@ -220,7 +216,6 @@ class JpegRecompress
           end
           [src_filename, recompressed_size]
         end
-
 
         puts('write progress...')
         database.transaction do
