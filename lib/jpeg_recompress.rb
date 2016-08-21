@@ -7,6 +7,7 @@ require 'pathname'
 require 'fileutils'
 require 'filesize'
 require 'rx'
+require 'colorize'
 require_relative 'progress_db'
 
 class JpegRecompress
@@ -204,20 +205,20 @@ class JpegRecompress
               end
             end
           rescue StandardError => e
-            STDERR.puts("\nfail #{src_filename}: #{e}")
+            STDERR.print('F'.colorize(:red))
             original_size = recompressed_size = File.size(src_filename)
           ensure
             File.delete(dest_tmp_filename) if File.exist?(dest_tmp_filename)
             if original_size > recompressed_size
-              STDOUT.puts("recompress #{filename}, #{original_size}->#{recompressed_size}, #{src_dir}->#{dest_dir}")
+              STDOUT.print('.'.colorize(:green))
             else
-              STDOUT.puts("skip #{filename}")
+              STDOUT.print('S'.colorize(:blue))
             end
           end
           [src_filename, recompressed_size]
         end
 
-        puts('write progress...')
+        print(' '.colorize(:white).on_white)
         database.transaction do
           results.each do |result|
             database.set_recompressed_size(result.first, result.last)
