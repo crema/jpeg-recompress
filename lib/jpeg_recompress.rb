@@ -166,15 +166,20 @@ class JpegRecompress
         results = Parallel.map(filenames, in_threads: thread_count) do |src_filename|
           return [src_filename, nil] unless File.exist?(src_filename)
 
+          src_tmp_filename = File.join(tmp_dir, "tmp_#{tmp_count.increment}" + '.jpg')
+          FileUtils.cp(src_filename, src_tmp_filename)
+
+          dest_tmp_filename = File.join(tmp_dir, "tmp_#{tmp_count.increment}" + '.jpg')
+
           recompressed_size = 0
           original_size = 0
           filename = Pathname.new(src_filename).relative_path_from(Pathname.new(src_dir))
-          tmp_filename = File.join(tmp_dir, "tmp_#{tmp_count.increment}" + '.jpg')
+
 
           begin
             nuvo_image do |process|
-              image = process.read(src_filename)
-              jpeg = process.lossy(image, tmp_filename, format: :jpeg, quality: :high)
+              image = process.read(src_tmp_filename)
+              jpeg = process.lossy(image, dest_tmp_filename, format: :jpeg, quality: :high)
 
               original_size = image.size
               recompressed_size = jpeg.size
@@ -187,25 +192,26 @@ class JpegRecompress
                 if File.exist?(dest_filename)
                   dest_size = File.size(dest_filename)
                   if dest_size > jpeg.size
-                    FileUtils.mv(tmp_filename, dest_filename)
+                    FileUtils.mv(dest_tmp_filename, dest_filename)
                     recompressed_size = jpeg.size
                   else
                     recompressed_size = dest_size
                   end
                 else
                   if original_size > recompressed_size
-                    FileUtils.cp(tmp_filename, dest_filename)
+                    FileUtils.cp(dest_tmp_filename, dest_filename)
                   else
-                    FileUtils.cp(src_filename, dest_filename)
+                    FileUtils.cp(src_tmp_filename, dest_filename)
                   end
                 end
               end
             end
           rescue StandardError => e
             STDERR.puts("\nfail #{src_filename}: #{e}")
-            original_size = recompressed_size = File.size(src_filename)
+            original_size = recompressed_size = File.size(src_tmp_filename)
           ensure
-            File.delete(tmp_filename) if File.exist?(tmp_filename)
+            File.delete(src_tmp_filename) if File.exist?(src_tmp_filename)
+            File.delete(dest_tmp_filename) if File.exist?(dest_tmp_filename)
             if original_size > recompressed_size
               STDOUT.puts("recompress #{filename}, #{original_size}->#{recompressed_size}, #{src_dir}->#{dest_dir}")
             else
