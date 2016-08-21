@@ -14,7 +14,7 @@ class JpegRecompress
 
   def initialize(dry_run: true,
                  src_dir: '', dest_dir: '', tmp_dir: '/mnt',
-                 thread_count: 0,
+                 thread_count: 0, batch_count: 100,
                  before: Time.now, after: Time.parse('2000-01-01'))
 
     @dry_run = dry_run
@@ -22,14 +22,17 @@ class JpegRecompress
     @dest_dir = dest_dir
     @tmp_dir = tmp_dir
     @thread_count = thread_count < 1 ? Facter.value('processors')['count'].to_i : thread_count
+    @batch_count = batch_count
     @before = before
     @after = after
 
-    @db = ProgressDb.new
     @stopped = Concurrent::AtomicBoolean.new(false)
     @find_files_complete = Concurrent::AtomicBoolean.new(false)
     @recompress_files_complete = Concurrent::AtomicBoolean.new(false)
     @nuvo_images = Queue.new
+
+    @server = Jimson::Server.new(self)
+    @database = ProgressDb.new
   end
 
   def ping
@@ -65,6 +68,17 @@ class JpegRecompress
     exit(0)
   end
 
+  def config
+    str = ''
+    str << "src_dir: #{src_dir}\n"
+    str << "dest_dir: #{dest_dir}\n"
+    str << "tmp_dir: #{tmp_dir}\n"
+    str << "thread_count: #{thread_count}\n"
+    str << "batch_count: #{batch_count}\n"
+    str << "between: #{after} ~ #{before}\n"
+    str
+  end
+
   def status
     elapsed_time =  Time.now.to_f - start_time.to_f
 
@@ -78,6 +92,8 @@ class JpegRecompress
     percent = 0.0 if percent.nan?
 
     str = ''
+    str << config
+    str << "\n"
     str << '[DRY] ' if dry_run
     str << "start #{start_time}"
     if complete_time
@@ -91,8 +107,6 @@ class JpegRecompress
     str << ", #{recompressed_size.pretty}/#{size.pretty}"
     str << ", reduce #{reduced_size.pretty}"
 
-
-
     str
   end
 
@@ -103,9 +117,9 @@ class JpegRecompress
 
   private
 
-  attr_reader :dry_run, :src_dir, :dest_dir, :tmp_dir, :thread_count, :before, :after,
+  attr_reader :dry_run, :src_dir, :dest_dir, :tmp_dir, :thread_count, :batch_count, :before, :after,
               :stopped, :start_time, :complete_time, :find_files_complete, :recompress_files_complete,
-              :nuvo_images
+              :nuvo_images, :server, :database
 
 
   def run_server
@@ -120,7 +134,7 @@ class JpegRecompress
   def find_files
     subject = Rx::Subject.new
     observable = subject.as_observable
-    observable = observable.buffer_with_count(1000)
+    observable = observable.buffer_with_count(batch_count)
 
     observable.subscribe(
         lambda do |entries|
@@ -143,17 +157,19 @@ class JpegRecompress
   def recompress_files
     subject = Rx::Subject.new
     observable = subject.as_observable
-    observable = observable.buffer_with_count(1000)
+    observable = observable.buffer_with_count(batch_count)
 
     observable.subscribe(
       lambda do |filenames|
-        Parallel.each(filenames, in_threads: thread_count) do |src_filename|
-          next unless File.exist?(src_filename)
+        tmp_count = Concurrent::AtomicFixnum.new
+
+        results = Parallel.map(filenames, in_threads: thread_count) do |src_filename|
+          return [src_filename, nil] unless File.exist?(src_filename)
 
           recompressed_size = 0
           original_size = 0
           filename = Pathname.new(src_filename).relative_path_from(Pathname.new(src_dir))
-          tmp_filename = File.join(tmp_dir, SecureRandom.hex + '.jpg')
+          tmp_filename = File.join(tmp_dir, "tmp_#{tmp_count.increment}" + '.jpg')
 
           begin
             nuvo_image do |process|
@@ -190,12 +206,20 @@ class JpegRecompress
             original_size = recompressed_size = File.size(src_filename)
           ensure
             File.delete(tmp_filename) if File.exist?(tmp_filename)
-            database.set_recompressed_size(src_filename, recompressed_size)
             if original_size > recompressed_size
               STDOUT.puts("recompress #{filename}, #{original_size}->#{recompressed_size}, #{src_dir}->#{dest_dir}")
             else
               STDOUT.puts("skip #{filename}")
             end
+          end
+          [src_filename, recompressed_size]
+        end
+
+
+        puts('write progress...')
+        database.transaction do
+          results.each do |result|
+            database.set_recompressed_size(result.first, result.last)
           end
         end
       end,
@@ -203,7 +227,7 @@ class JpegRecompress
       lambda {recompress_files_complete.value = true}
     )
 
-    database.find_not_recompressed_each(1000) do |filename|
+    database.find_not_recompressed_each(batch_count) do |filename|
       subject.on_next(filename)
     end
     subject.on_completed
@@ -252,13 +276,5 @@ class JpegRecompress
     yield process
     process.clear
     nuvo_images << process
-  end
-
-  def server
-    @server ||= Jimson::Server.new(self)
-  end
-
-  def database
-    @databse ||= ProgressDb.new
   end
 end

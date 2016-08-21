@@ -15,17 +15,15 @@ namespace :jpeg_recompress do
     dest_dir = config.fetch('dest_dir', src_dir).to_s
     tmp_dir = config.fetch('tmp_dir', '/tmp').to_s
     thread_count = config.fetch('thread_count', Facter.value('processors')['count']).to_i
+    batch_count = config.fetch('batch_count', 100).to_i
     before = config.fetch('before', Time.now).to_time
     after = config.fetch('after', Time.parse('2000-01-01')).to_time
 
-    if dry_run == false || dry_run.to_s.downcase == 'wet'
-      STDERR.puts('WARNINIG! wet run. type wet')
-      type = STDIN.readline.delete("\n")
-      unless type.downcase == 'wet'
-        STDERR.puts('invaid type')
-        exit(1)
-      end
-    end
+
+
+
+    FileUtils.mkdir_p(tmp_dir) unless Dir.exist?(tmp_dir)
+    FileUtils.mkdir_p(dest_dir)unless Dir.exist?(dest_dir)
 
     unless File.directory?(src_dir)
       STDERR.puts('invalid src dir')
@@ -42,17 +40,27 @@ namespace :jpeg_recompress do
       exit(1)
     end
 
-    FileUtils.mkdir_p(tmp_dir) unless Dir.exist?(tmp_dir)
-    FileUtils.mkdir_p(dest_dir)unless Dir.exist?(dest_dir)
 
-    JpegRecompress.new(dry_run: dry_run,
-                       src_dir: File.expand_path(src_dir),
-                       dest_dir: File.expand_path(dest_dir),
-                       tmp_dir: File.expand_path(tmp_dir),
-                       thread_count: thread_count,
-                       before: before,
-                       after: after).run
+    jpeg_recompress = JpegRecompress.new(dry_run: dry_run,
+                                         src_dir: File.expand_path(src_dir),
+                                         dest_dir: File.expand_path(dest_dir),
+                                         tmp_dir: File.expand_path(tmp_dir),
+                                         thread_count: thread_count,
+                                         batch_count: batch_count,
+                                         before: before,
+                                         after: after)
+    puts jpeg_recompress.config
+    puts('')
+    if dry_run == false || dry_run.to_s.downcase == 'wet'
+      puts('WARNINIG! wet run. type wet')
+      type = STDIN.readline.delete("\n")
+      unless type.downcase == 'wet'
+        puts('invaid type')
+        exit(1)
+      end
+    end
 
+    jpeg_recompress.run
   end
 
   task :status do

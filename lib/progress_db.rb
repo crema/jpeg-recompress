@@ -2,6 +2,9 @@ require 'sqlite3'
 
 class ProgressDb
   def initialize
+    @mutex = Mutex.new
+    @database = SQLite3::Database.new(database_file)
+
     execute <<-SQL
       CREATE TABLE IF NOT EXISTS images(
         filename TEXT PRIMARY KEY,
@@ -19,9 +22,11 @@ class ProgressDb
   end
 
   def transaction
-    begin_transaction
-    yield
-    commit
+    synchronize do
+      begin_transaction
+      yield
+      commit
+    end
   end
 
   def insert(filename, size)
@@ -67,28 +72,44 @@ class ProgressDb
 
   private
 
-  def database
-    @database ||= SQLite3::Database.new(database_file)
+
+  attr_reader :mutex, :database
+
+  def synchronize
+    if Thread.current[:db_mutex]
+      yield if block_given?
+    else
+      result = nil
+      Thread.current[:db_mutex] = mutex
+      mutex.synchronize do
+        result =yield if block_given?
+      end
+      Thread.current[:db_mutex] = nil
+      result
+    end
   end
+
 
   def database_file
     @database_file ||= File.join(File.dirname(__FILE__),'../progress.db')
   end
 
   def begin_transaction
-    execute <<-SQL
+    database.execute <<-SQL
       BEGIN;
     SQL
   end
 
   def commit
-    execute <<-SQL
+    database.execute <<-SQL
       COMMIT;
     SQL
   end
 
   def execute(sql)
-    database.execute(sql)
+    synchronize do
+      database.execute(sql)
+    end
   end
 
 end
