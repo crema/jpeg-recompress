@@ -87,6 +87,7 @@ class JpegRecompress
 
     size = Filesize.new(size)
     recompressed_size = Filesize.new(recompressed_size)
+    processed_size = Filesize.new(recompressed_size + reduced_size)
     reduced_size = Filesize.new(reduced_size)
 
     percent = recomppressed_count.to_f/count.to_f * 100
@@ -105,7 +106,7 @@ class JpegRecompress
     str << "\n"
     str << "recompress #{recomppressed_count}/#{count}(#{format('%.2f',percent)}%)"
     str << ", skip #{skip_count}"
-    str << ", #{recompressed_size.pretty}/#{size.pretty}"
+    str << ", #{recompressed_size.pretty}/#{processed_size.pretty}/#{size.pretty}"
     str << ", reduce #{reduced_size.pretty}"
 
     str
