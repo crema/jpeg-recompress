@@ -107,7 +107,7 @@ class JpegRecompress
     str << "recompress #{recomppressed_count}/#{count}(#{format('%.2f',percent)}%)"
     str << ", skip #{skip_count}"
     str << ", #{recompressed_size.pretty}/#{processed_size.pretty}/#{size.pretty}"
-    str << ", reduce #{reduced_size.pretty}(#{format('%.2f',reduced_size / (recompressed_size + reduced_size).to_f)}%)"
+    str << ", reduce #{reduced_size.pretty}(#{format('%.2f',reduced_size / (recompressed_size + reduced_size).to_f * 100)}%)"
 
     str
   end
