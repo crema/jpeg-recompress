@@ -10,4 +10,4 @@ gem 'filesize'
 gem 'facter'
 gem 'colorize'
 
-gem 'nuvo-image', github: 'crema/nuvo-image', tag: '0.2.2'
+gem 'nuvo-image', github: 'crema/nuvo-image', tag: '0.3.0'

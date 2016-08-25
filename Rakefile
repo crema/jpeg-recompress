@@ -1,71 +1,40 @@
 require 'jimson'
 require 'facter'
 require 'rake'
-require 'yaml'
-require_relative 'lib/progress_db'
 require_relative 'lib/jpeg_recompress'
+require_relative 'lib/jpeg_compare'
 
 namespace :jpeg_recompress do
   task :start do
+    config = Config.new('config.yml')
 
-    config = YAML.load_file('config.yml')['jpeg_recompress']
+    FileUtils.mkdir_p(config.dest_dir) unless Dir.exist?(config.dest_dir)
 
-    dry_run = config.fetch('dry_run', true)
-    src_dir = config['src_dir'].to_s
-    dest_dir = config.fetch('dest_dir', src_dir).to_s
-    tmp_dir = config.fetch('tmp_dir', '/tmp').to_s
-    thread_count = config.fetch('thread_count', Facter.value('processors')['count']).to_i
-    batch_count = config.fetch('batch_count', 100).to_i
-    before = config.fetch('before', Time.now).to_time
-    after = config.fetch('after', Time.parse('2000-01-01')).to_time
-
-
-
-
-    FileUtils.mkdir_p(tmp_dir) unless Dir.exist?(tmp_dir)
-    FileUtils.mkdir_p(dest_dir)unless Dir.exist?(dest_dir)
-
-    unless File.directory?(src_dir)
+    unless config.valid_src_dir?
       STDERR.puts('invalid src dir')
       exit(1)
     end
 
-    unless File.directory?(dest_dir)
+    unless config.valid_dest_dir?
       STDERR.puts('invalid dest dir')
       exit(1)
     end
 
-    unless File.directory?(tmp_dir)
+    unless config.valid_tmp_dir?
       STDERR.puts('invalid tmp dir')
       exit(1)
     end
 
+    jpeg_recompress = JpegRecompress.new(config)
 
-    jpeg_recompress = JpegRecompress.new(dry_run: dry_run,
-                                         src_dir: File.expand_path(src_dir),
-                                         dest_dir: File.expand_path(dest_dir),
-                                         tmp_dir: File.expand_path(tmp_dir),
-                                         thread_count: thread_count,
-                                         batch_count: batch_count,
-                                         before: before,
-                                         after: after)
-    puts jpeg_recompress.config
-    puts('')
-    if dry_run == false || dry_run.to_s.downcase == 'wet'
-      puts('WARNINIG! wet run. type wet')
-      type = STDIN.readline.delete("\n")
-      unless type.downcase == 'wet'
-        puts('invaid type')
-        exit(1)
-      end
-    end
+    puts config
 
     jpeg_recompress.run
   end
 
   task :status do
     begin
-      client = Jimson::Client.new("http://0.0.0.0:8999")
+      client = Jimson::Client.new("http://0.0.0.0:8998")
       puts(client.status)
     rescue StandardError
       STDERR.puts('jpeg_recompress not start')
@@ -74,7 +43,7 @@ namespace :jpeg_recompress do
 
   task :stop do
     begin
-      client = Jimson::Client.new("http://0.0.0.0:8999")
+      client = Jimson::Client.new("http://0.0.0.0:8998")
       client.stop
       sleep(3)
     rescue StandardError
@@ -84,12 +53,72 @@ namespace :jpeg_recompress do
 
   task :clean do
     begin
-      client = Jimson::Client.new("http://0.0.0.0:8999")
+      client = Jimson::Client.new("http://0.0.0.0:8998")
       client.ping
       STDERR.puts('jpeg recompress run')
       exit(1)
     rescue StandardError
-      ProgressDb.new.clean
+      RecompressDb.new.clean
+      puts('Clean OK')
+    end
+  end
+end
+
+namespace :jpeg_compare do
+  task :start do
+    config = Config.new('config.yml')
+
+    FileUtils.mkdir_p(config.dest_dir) unless Dir.exist?(config.dest_dir)
+
+    unless config.valid_src_dir?
+      STDERR.puts('invalid src dir')
+      exit(1)
+    end
+
+    unless config.valid_dest_dir?
+      STDERR.puts('invalid dest dir')
+      exit(1)
+    end
+
+    unless config.valid_tmp_dir?
+      STDERR.puts('invalid tmp dir')
+      exit(1)
+    end
+
+    jpeg_compare = JpegCompare.new(config)
+
+    puts config
+
+    jpeg_compare.run
+  end
+
+  task :status do
+    begin
+      client = Jimson::Client.new("http://0.0.0.0:8999")
+      puts(client.status)
+    rescue StandardError
+      STDERR.puts('jpeg_compare not start')
+    end
+  end
+
+  task :stop do
+    begin
+      client = Jimson::Client.new("http://0.0.0.0:8999")
+      client.stop
+      sleep(3)
+    rescue StandardError
+      STDERR.puts('jpeg_compare not start')
+    end
+  end
+
+  task :clean do
+    begin
+      client = Jimson::Client.new("http://0.0.0.0:8999")
+      client.ping
+      STDERR.puts('jpeg_compare run')
+      exit(1)
+    rescue StandardError
+      RecompressDb.new.clean
       puts('Clean OK')
     end
   end

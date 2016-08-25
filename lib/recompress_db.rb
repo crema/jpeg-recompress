@@ -1,10 +1,9 @@
 require 'sqlite3'
+require_relative 'database'
 
-class ProgressDb
+class RecompressDb < Database
   def initialize
-    @mutex = Mutex.new
-    @database = SQLite3::Database.new(database_file)
-
+    super(database_file)
     execute <<-SQL
       CREATE TABLE IF NOT EXISTS images(
         filename TEXT PRIMARY KEY,
@@ -17,21 +16,10 @@ class ProgressDb
     SQL
   end
 
-  def clean
-    File.delete(database_file) if File.exist?(database_file)
-  end
 
-  def transaction
-    synchronize do
-      begin_transaction
-      yield
-      commit
-    end
-  end
-
-  def insert(filename, size)
+  def insert(filename, stat)
     execute <<-SQL
-      INSERT OR IGNORE INTO images VALUES("#{filename}",#{size}, NULL);
+      INSERT OR IGNORE INTO images VALUES("#{filename}",#{stat.size}, NULL);
     SQL
   end
 
@@ -48,14 +36,14 @@ class ProgressDb
     rows.first
   end
 
-  def not_recompressed_count
+  def not_processed_count
     rows = execute <<-SQL
       SELECT COUNT(*) FROM images where recompressed_size IS NULL
     SQL
     rows.first.first
   end
 
-  def find_not_recompressed_each(batch_size = 5000)
+  def find_not_processed_each(batch_size = 5000)
     offset = 0
     loop do
       rows = execute <<-SQL
@@ -72,44 +60,7 @@ class ProgressDb
 
   private
 
-
-  attr_reader :mutex, :database
-
-  def synchronize
-    if Thread.current[:db_mutex]
-      yield if block_given?
-    else
-      result = nil
-      Thread.current[:db_mutex] = mutex
-      mutex.synchronize do
-        result =yield if block_given?
-      end
-      Thread.current[:db_mutex] = nil
-      result
-    end
-  end
-
-
   def database_file
-    @database_file ||= File.join(File.dirname(__FILE__),'../progress.db')
+    @database_file ||= File.join(File.dirname(__FILE__),'../recompress.db')
   end
-
-  def begin_transaction
-    database.execute <<-SQL
-      BEGIN;
-    SQL
-  end
-
-  def commit
-    database.execute <<-SQL
-      COMMIT;
-    SQL
-  end
-
-  def execute(sql)
-    synchronize do
-      database.execute(sql)
-    end
-  end
-
 end
