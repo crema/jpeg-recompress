@@ -1,6 +1,6 @@
 GIT
   remote: git://github.com/crema/nuvo-image.git
-  revision: 6af04085c199849a4b5df9836f87492575ce62e6
+  revision: 730bfbc7a6ee36c6103ab79c6f48728ea60924b9
   tag: 0.3.0
   specs:
     nuvo-image (0.3.0)
