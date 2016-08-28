@@ -37,10 +37,6 @@ class JpegCompare < JpegProcess
     str
   end
 
-  def unmatches
-
-  end
-
   def process_files(filenames)
     results = Parallel.map(filenames, in_threads: config.thread_count) do |src_filename|
       filename = Pathname.new(src_filename).relative_path_from(Pathname.new(config.src_dir))

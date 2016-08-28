@@ -116,8 +116,6 @@ class JpegProcess
   attr_reader :config, :stopped, :start_time, :complete_time, :find_files_complete, :process_files_complete,
               :server, :database
 
-
-
   def elsapsed_time_str(elapsed_time)
     str = ''
     days = (elapsed_time / 60 / 60/ 24).floor
@@ -136,7 +134,7 @@ class JpegProcess
     dirs = [[dir, File.stat(dir)]]
 
     until dirs.empty?
-      dirs.sort_by! {|dir| dir.last.ctime }
+      dirs.sort_by! {|dir| dir.last.ino }
       current_entry = dirs.pop
 
       entries = Dir.entries(current_entry.first).select do |entry|
