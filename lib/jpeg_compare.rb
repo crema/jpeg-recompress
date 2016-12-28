@@ -9,28 +9,26 @@ class JpegCompare < JpegProcess
   end
 
   def status
-    if complete_time
-      elapsed_time = complete_time - start_time
-    else
-      elapsed_time = Time.now - start_time
-    end
+    elapsed_time = if complete_time
+                     complete_time - start_time
+                   else
+                     Time.now - start_time
+                   end
 
-    count, compare_count, match_count = database.status.map {|c| c.to_i}
+    count, compare_count, match_count = database.status.map(&:to_i)
 
-    percent = compare_count.to_f/count.to_f * 100
+    percent = compare_count.to_f / count.to_f * 100
     percent = 0.0 if percent.nan?
 
     str = ''
     str << config.to_s
     str << "\n"
     str << "start #{start_time}"
-    if complete_time
-      str << ", complete #{complete_time}"
-    end
+    str << ", complete #{complete_time}" if complete_time
     str << ", elapsed #{elsapsed_time_str(elapsed_time)}"
     str << "\n"
 
-    str << "compare #{compare_count}/#{count}(#{format('%.2f',percent)}%)"
+    str << "compare #{compare_count}/#{count}(#{format('%.2f', percent)}%)"
     str << ", match #{match_count}"
     str << ", unmatch #{compare_count - match_count}"
 
@@ -43,7 +41,7 @@ class JpegCompare < JpegProcess
       dest_filename = File.join(config.dest_dir, filename)
       ssim = 0
 
-      if File.exist?(src_filename) ||File.exist?(dest_filename)
+      if File.exist?(src_filename) || File.exist?(dest_filename)
         begin
           nuvo_image do |process|
             image1 = process.read(src_filename)

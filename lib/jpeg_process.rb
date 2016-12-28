@@ -11,7 +11,6 @@ require 'colorize'
 require_relative 'config'
 
 class JpegProcess
-
   def initialize(config, server, database)
     @stopped = Concurrent::AtomicBoolean.new(false)
     @find_files_complete = Concurrent::AtomicBoolean.new(false)
@@ -51,22 +50,17 @@ class JpegProcess
       puts('COMPLETE')
     end
 
-    until stopped.value
-      sleep(1)
-    end
+    sleep(1) until stopped.value
 
     puts('exit jpeg_recompress')
     exit(0)
   end
 
-
   def run_server
-    begin
-      server.start
-    rescue StandardError => e
-      STDERR.puts(e)
-      exit(1)
-    end
+    server.start
+  rescue StandardError => e
+    STDERR.puts(e)
+    exit(1)
   end
 
   def file_files
@@ -82,8 +76,8 @@ class JpegProcess
           end
         end
       end,
-      lambda {|err| STDERR.puts(err)},
-      lambda { find_files_complete.value = true }
+      ->(err) { STDERR.puts(err) },
+      -> { find_files_complete.value = true }
     )
 
     traversal_dir(config.src_dir) do |entry|
@@ -101,8 +95,8 @@ class JpegProcess
       lambda do |files|
         process_files(files)
       end,
-      lambda {|err| STDERR.puts(err)},
-      lambda {process_files_complete.value = true}
+      ->(err) { STDERR.puts(err) },
+      -> { process_files_complete.value = true }
     )
 
     database.find_not_processed_each(config.batch_count) do |filename|
@@ -118,10 +112,10 @@ class JpegProcess
 
   def elsapsed_time_str(elapsed_time)
     str = ''
-    days = (elapsed_time / 60 / 60/ 24).floor
+    days = (elapsed_time / 60 / 60 / 24).floor
     hours = (elapsed_time / 60 / 60).floor % 24
-    minutes = (elapsed_time / 60 ).floor % 60
-    seconds = (elapsed_time).floor % 60
+    minutes = (elapsed_time / 60).floor % 60
+    seconds = elapsed_time.floor % 60
 
     str << "#{days}d " if days > 0
     str << "#{hours}h " if hours > 0
@@ -130,15 +124,15 @@ class JpegProcess
     str
   end
 
-  def traversal_dir(dir, &block)
+  def traversal_dir(dir)
     dirs = [[dir, File.stat(dir)]]
 
     until dirs.empty?
-      dirs.sort_by! {|dir| dir.last.ino }
+      dirs.sort_by! { |d| d.last.ino }
       current_entry = dirs.pop
 
       entries = Dir.entries(current_entry.first).select do |entry|
-        !['.','..'].include?(entry)
+        !['.', '..'].include?(entry)
       end
 
       entries = entries.map do |entry|
@@ -152,24 +146,21 @@ class JpegProcess
         path, stat = entry
         if stat.directory?
           dirs.push(entry)
-        else
-          if block_given? &&
-            ['.jpg','.jpeg'].include?(File.extname(path).downcase) &&
-            stat.ctime.between?(config.after, config.before)
-            yield entry
-          end
+        elsif block_given? &&
+              ['.jpg', '.jpeg'].include?(File.extname(path).downcase) &&
+              stat.ctime.between?(config.after, config.before)
+          yield entry
         end
       end
     end
   end
 
   def nuvo_image(&_block)
-    process = nil
-    if nuvo_images.empty?
-      process = NuvoImage::Process.new
-    else
-      process = nuvo_images.pop
-    end
+    process = if nuvo_images.empty?
+                NuvoImage::Process.new
+              else
+                nuvo_images.pop
+              end
     yield process
     process.clear
     nuvo_images << process

@@ -9,12 +9,12 @@ class JpegRecompress < JpegProcess
   end
 
   def status
-    if complete_time
-      elapsed_time = complete_time - start_time
-    else
-      elapsed_time = Time.now - start_time
-    end
-    count, recompressed_count, skip_count, size, recompressed_size, reduced_size  = database.status.map {|c| c.to_i}
+    elapsed_time = if complete_time
+                     complete_time - start_time
+                   else
+                     Time.now - start_time
+                   end
+    count, recompressed_count, skip_count, size, recompressed_size, reduced_size = database.status.map(&:to_i)
 
     size = Filesize.new(size)
     reduced_percent = reduced_size.to_f / (recompressed_size + reduced_size).to_f * 100
@@ -22,7 +22,7 @@ class JpegRecompress < JpegProcess
     processed_size = Filesize.new(recompressed_size + reduced_size)
     reduced_size = Filesize.new(reduced_size)
 
-    percent = recompressed_count.to_f/count.to_f * 100
+    percent = recompressed_count.to_f / count.to_f * 100
     percent = 0.0 if percent.nan?
 
     str = ''
@@ -30,21 +30,18 @@ class JpegRecompress < JpegProcess
     str << "\n"
     str << '[DRY] ' if config.dry_run
     str << "start #{start_time}"
-    if complete_time
-      str << ", complete #{complete_time}"
-    end
+    str << ", complete #{complete_time}" if complete_time
 
     str << ", elapsed #{elsapsed_time_str(elapsed_time)}"
 
     str << "\n"
-    str << "recompress #{recompressed_count}/#{count}(#{format('%.2f',percent)}%)"
+    str << "recompress #{recompressed_count}/#{count}(#{format('%.2f', percent)}%)"
     str << ", skip #{skip_count}"
     str << ", #{recompressed_size.pretty}/#{processed_size.pretty}/#{size.pretty}"
-    str << ", reduce #{reduced_size.pretty}(#{format('%.2f',reduced_percent)}%)"
+    str << ", reduce #{reduced_size.pretty}(#{format('%.2f', reduced_percent)}%)"
 
     str
   end
-
 
   def process_files(filenames)
     tmp_str = SecureRandom.hex
@@ -69,9 +66,7 @@ class JpegRecompress < JpegProcess
 
           unless config.dry_run
             FileUtils.mkdir_p(File.dirname(dest_filename)) unless Dir.exist?(File.dirname(dest_filename))
-            if original_size <= recompressed_size
-              skip = true
-            end
+            skip = true if original_size <= recompressed_size
           end
         end
       rescue StandardError => e

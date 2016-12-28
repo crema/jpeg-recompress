@@ -36,7 +36,7 @@ class Database
       result = nil
       Thread.current[:db_mutex] = mutex
       mutex.synchronize do
-        result =yield if block_given?
+        result = yield if block_given?
       end
       Thread.current[:db_mutex] = nil
       result
