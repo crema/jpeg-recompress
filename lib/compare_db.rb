@@ -12,8 +12,7 @@ class CompareDb < Database
     SQL
   end
 
-
-  def insert(filename, stat)
+  def insert(filename, _stat)
     execute <<-SQL
       INSERT OR IGNORE INTO images VALUES("#{filename}", NULL);
     SQL
@@ -40,16 +39,18 @@ class CompareDb < Database
   end
 
   def find_not_processed_each(batch_size = 5000)
-    offset = 0
-    loop do
-      rows = execute <<-SQL
-        SELECT filename, rowid FROM images WHERE rowid > #{offset} AND ssim IS NULL LIMIT #{batch_size}
-      SQL
-      return if rows.empty?
+    Enumerator.new do |y|
+      offset = 0
+      loop do
+        rows = execute <<-SQL
+          SELECT filename, rowid FROM images WHERE rowid > #{offset} AND ssim IS NULL LIMIT #{batch_size}
+        SQL
+        break if rows.empty?
 
-      offset += rows.last.last
-      rows.each do |row|
-        yield row.first
+        offset += rows.last.last
+        rows.each do |row|
+          y << row.first
+        end
       end
     end
   end
@@ -57,6 +58,6 @@ class CompareDb < Database
   private
 
   def database_file
-    @database_file ||= File.join(File.dirname(__FILE__),'../compare.db')
+    @database_file ||= File.join(File.dirname(__FILE__), '../compare.db')
   end
 end

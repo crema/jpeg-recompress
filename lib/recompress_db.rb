@@ -44,16 +44,21 @@ class RecompressDb < Database
   end
 
   def find_not_processed_each(batch_size = 5000)
-    offset = 0
-    loop do
-      rows = execute <<-SQL
-        SELECT filename, rowid FROM images WHERE rowid > #{offset} AND recompressed_size IS NULL LIMIT #{batch_size}
-      SQL
-      return if rows.empty?
+    Enumerator.new do |y|
+      offset = 0
+      loop do
+        rows = execute <<-SQL
+          SELECT filename, rowid
+          FROM images
+          WHERE rowid > #{offset} AND recompressed_size IS NULL
+          LIMIT #{batch_size}
+        SQL
+        break if rows.empty?
 
-      offset += rows.last.last
-      rows.each do |row|
-        yield row.first
+        offset += rows.last.last
+        rows.each do |row|
+          y << row.first
+        end
       end
     end
   end

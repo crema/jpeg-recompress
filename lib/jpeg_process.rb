@@ -1,20 +1,21 @@
-require 'nuvo_image'
-require 'facter'
-require 'jimson'
+require 'colorize'
 require 'concurrent'
+require 'facter'
+require 'filesize'
+require 'fileutils'
+require 'jimson'
+require 'nuvo_image'
 require 'parallel'
 require 'pathname'
-require 'fileutils'
-require 'filesize'
 require 'rx'
-require 'colorize'
 require_relative 'config'
+require_relative 'utils'
 
 class JpegProcess
   def initialize(config, server, database)
     @stopped = Concurrent::AtomicBoolean.new(false)
-    @find_files_complete = Concurrent::AtomicBoolean.new(false)
-    @process_files_complete = Concurrent::AtomicBoolean.new(false)
+    @find_files_completed = Concurrent::AtomicBoolean.new(false)
+    @process_files_completed = Concurrent::AtomicBoolean.new(false)
     @server = server
     @database = database
     @config = config
@@ -37,11 +38,11 @@ class JpegProcess
     end
 
     Thread.new do
-      file_files
+      find_files
     end
 
     Thread.new do
-      while find_files_complete.value == false || database.not_processed_count > 0
+      while find_files_completed.false? || database.not_processed_count > 0
         process_not_processed_files
       end
 
@@ -50,7 +51,7 @@ class JpegProcess
       puts('COMPLETE')
     end
 
-    sleep(1) until stopped.value
+    sleep(1) while stopped.false?
 
     puts('exit jpeg_recompress')
     exit(0)
@@ -63,11 +64,10 @@ class JpegProcess
     exit(1)
   end
 
-  def file_files
-    subject = Rx::Subject.new
-    observable = subject.as_observable
-    observable = observable.buffer_with_count(config.batch_count)
-
+  def find_files
+    dir_enumerator = Utils.traversal_dir(config.src_dir, config.after, config.before)
+    observable = Rx::Observable.of_enumerator(dir_enumerator)
+                               .buffer_with_count(config.batch_count)
     observable.subscribe(
       lambda do |entries|
         database.transaction do
@@ -77,37 +77,24 @@ class JpegProcess
         end
       end,
       ->(err) { STDERR.puts(err) },
-      -> { find_files_complete.value = true }
+      -> { find_files_completed.value = true }
     )
-
-    traversal_dir(config.src_dir) do |entry|
-      subject.on_next(entry)
-    end
-    subject.on_completed
   end
 
   def process_not_processed_files
-    subject = Rx::Subject.new
-    observable = subject.as_observable
-    observable = observable.buffer_with_count(config.batch_count)
-
+    filename_enumerator = database.find_not_processed_each(config.batch_count)
+    observable = Rx::Observable.of_enumerator(filename_enumerator)
+                               .buffer_with_count(config.batch_count)
     observable.subscribe(
-      lambda do |files|
-        process_files(files)
-      end,
+      ->(files) { process_files(files) },
       ->(err) { STDERR.puts(err) },
-      -> { process_files_complete.value = true }
+      -> { process_files_completed.value = true }
     )
-
-    database.find_not_processed_each(config.batch_count) do |filename|
-      subject.on_next(filename)
-    end
-    subject.on_completed
   end
 
   protected
 
-  attr_reader :config, :stopped, :start_time, :complete_time, :find_files_complete, :process_files_complete,
+  attr_reader :config, :stopped, :start_time, :complete_time, :find_files_completed, :process_files_completed,
               :server, :database
 
   def elsapsed_time_str(elapsed_time)
@@ -122,37 +109,6 @@ class JpegProcess
     str << "#{minutes}m " if minutes > 0
     str << "#{seconds}s"
     str
-  end
-
-  def traversal_dir(dir)
-    dirs = [[dir, File.stat(dir)]]
-
-    until dirs.empty?
-      dirs.sort_by! { |d| d.last.ino }
-      current_entry = dirs.pop
-
-      entries = Dir.entries(current_entry.first).select do |entry|
-        !['.', '..'].include?(entry)
-      end
-
-      entries = entries.map do |entry|
-        File.join(current_entry.first, entry)
-      end
-
-      entries = entries.map do |entry|
-        [entry, File.stat(entry)]
-      end
-      entries.each do |entry|
-        path, stat = entry
-        if stat.directory?
-          dirs.push(entry)
-        elsif block_given? &&
-              ['.jpg', '.jpeg'].include?(File.extname(path).downcase) &&
-              stat.ctime.between?(config.after, config.before)
-          yield entry
-        end
-      end
-    end
   end
 
   def nuvo_image(&_block)

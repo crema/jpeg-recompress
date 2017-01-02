@@ -56,6 +56,9 @@ class JpegRecompress < JpegProcess
       filename = Pathname.new(src_filename).relative_path_from(Pathname.new(config.src_dir))
       dest_filename = File.join(config.dest_dir, filename)
       skip = false
+
+      copy_to_bak(src_filename, filename)
+
       begin
         nuvo_image do |process|
           image = process.read(src_filename)
@@ -65,7 +68,7 @@ class JpegRecompress < JpegProcess
           recompressed_size = jpeg.size
 
           unless config.dry_run
-            FileUtils.mkdir_p(File.dirname(dest_filename)) unless Dir.exist?(File.dirname(dest_filename))
+            FileUtils.mkdir_p(File.dirname(dest_filename))
             skip = true if original_size <= recompressed_size
           end
         end
@@ -86,11 +89,8 @@ class JpegRecompress < JpegProcess
 
         File.delete(dest_tmp_filename) if File.exist?(dest_tmp_filename)
 
-        if skip
-          STDOUT.print('S'.colorize(:blue))
-        else
-          STDOUT.print('.'.colorize(:green))
-        end
+        prog_char = skip ? 'S'.colorize(:blue) : '.'.colorize(:green)
+        STDOUT.print prog_char
       end
       [src_filename, recompressed_size]
     end
@@ -101,5 +101,13 @@ class JpegRecompress < JpegProcess
         database.set_recompressed_size(result.first, result.last)
       end
     end
+  end
+
+  def copy_to_bak(src_filename, filename)
+    return unless config.bak_dir
+
+    bak_filename = File.join(config.bak_dir, filename)
+    FileUtils.mkdir_p(File.dirname(bak_filename))
+    FileUtils.cp(src_filename, bak_filename) if src_filename != bak_filename
   end
 end
