@@ -8,17 +8,21 @@ require 'nuvo_image'
 require 'parallel'
 require 'pathname'
 require 'rx'
+require 'time'
 require_relative 'config'
 require_relative 'utils'
 
 class JpegProcess
   def initialize(config, server, database)
+    @logger = SemanticLogger['jpeg-recompress']
+
     @stopped = Concurrent::AtomicBoolean.new(false)
     @find_files_completed = Concurrent::AtomicBoolean.new(false)
     @process_files_completed = Concurrent::AtomicBoolean.new(false)
     @server = server
     @database = database
     @config = config
+    @snooze = true
   end
 
   def ping
@@ -33,16 +37,21 @@ class JpegProcess
   def run
     @start_time = Time.now
 
-    Thread.new do
-      run_server
-    end
+    Thread.abort_on_exception = true
 
+    Thread.new { run_server }
+    Thread.new { find_files }
     Thread.new do
-      find_files
-    end
+      active_start_time, active_end_time = config.active_start_end
 
-    Thread.new do
-      while find_files_completed.false? || database.not_processed_count > 0
+      while find_files_completed.false? || database.not_processed_count.positive?
+        loop do
+          time_now = Time.now
+          active_start_time, active_end_time = config.active_start_end if active_end_time < time_now
+          break if time_now.between?(active_start_time, active_end_time)
+          sleep 60
+        end
+
         process_not_processed_files
       end
 
@@ -60,7 +69,7 @@ class JpegProcess
   def run_server
     server.start
   rescue StandardError => e
-    STDERR.puts(e)
+    logger.error e
     exit(1)
   end
 
@@ -71,12 +80,10 @@ class JpegProcess
     observable.subscribe(
       lambda do |entries|
         database.transaction do
-          entries.each do |entry|
-            database.insert(entry.first, entry.last)
-          end
+          entries.each { |entry| database.insert(entry.first, entry.last) }
         end
       end,
-      ->(err) { STDERR.puts(err) },
+      ->(err) { logger.error err },
       -> { find_files_completed.value = true }
     )
   end
@@ -87,26 +94,36 @@ class JpegProcess
                                .buffer_with_count(config.batch_count)
     observable.subscribe(
       ->(files) { process_files(files) },
-      ->(err) { STDERR.puts(err) },
+      ->(err) { logger.error err },
       -> { process_files_completed.value = true }
     )
   end
 
   protected
 
-  attr_reader :config, :stopped, :start_time, :complete_time, :find_files_completed, :process_files_completed,
-              :server, :database
+  attr_reader(
+    :complete_time,
+    :config,
+    :database,
+    :find_files_completed,
+    :logger,
+    :process_files_completed,
+    :server,
+    :snooze,
+    :start_time,
+    :stopped
+  )
 
   def elsapsed_time_str(elapsed_time)
-    str = ''
     days = (elapsed_time / 60 / 60 / 24).floor
     hours = (elapsed_time / 60 / 60).floor % 24
     minutes = (elapsed_time / 60).floor % 60
     seconds = elapsed_time.floor % 60
 
-    str << "#{days}d " if days > 0
-    str << "#{hours}h " if hours > 0
-    str << "#{minutes}m " if minutes > 0
+    str = ''
+    str << "#{days}d " if days.positive?
+    str << "#{hours}h " if hours.positive?
+    str << "#{minutes}m " if minutes.positive?
     str << "#{seconds}s"
     str
   end

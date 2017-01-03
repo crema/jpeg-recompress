@@ -50,14 +50,11 @@ class JpegCompare < JpegProcess
             ssim = process.compare(image1, image2)
           end
         rescue StandardError => e
-          STDERR.puts(e)
+          logger.error e
           ssim = 0
         ensure
-          if ssim > 0.8
-            STDOUT.print('.'.colorize(:green))
-          else
-            STDOUT.print('F'.colorize(:red))
-          end
+          prog_char = ssim > 0.8 ? '.'.colorize(:green) : 'F'.colorize(:red)
+          STDOUT.print prog_char
         end
       end
       [src_filename, ssim]

@@ -1,21 +1,29 @@
-require 'yaml'
 require 'facter'
+require 'yaml'
 
 class Config
   def initialize(filename)
     config = YAML.load_file(filename)['jpeg_recompress']
 
     @dry_run = config.fetch('dry_run', true)
+
+    # directory configs
     @src_dir = config['src_dir'].to_s
     @dest_dir = config.fetch('dest_dir', src_dir).to_s
     @tmp_dir = config.fetch('tmp_dir', '/tmp').to_s
     @bak_dir = config['bak_dir'].to_s
+
     @thread_count = config.fetch('thread_count', Facter.value('processors')['count']).to_i
+    @thread_count = Facter.value('processors')['count'].to_i if @thread_count.zero?
     @batch_count = config.fetch('batch_count', 100).to_i
+
+    # time range for finding target files
     @before = config.fetch('before', Time.now).to_time
     @after = config.fetch('after', Time.parse('2000-01-01')).to_time
 
-    @thread_count = Facter.value('processors')['count'].to_i if @thread_count.zero?
+    # time configs for snoozing
+    @active_start = config.fetch('active_start', '00:00')
+    @active_for = config.fetch('active_for', 24).to_i
   end
 
   def valid_src_dir?
@@ -38,19 +46,36 @@ class Config
     end
   end
 
-  def to_s
-    str = ''
-    str << "src_dir: #{src_dir}\n"
-    str << "dest_dir: #{dest_dir}\n"
-    str << "tmp_dir: #{tmp_dir}\n"
-    str << "bak_dir: #{bak_dir}\n"
-    str << "thread_count: #{thread_count}\n"
-    str << "batch_count: #{batch_count}\n"
-    str << "between: #{after} ~ #{before}\n"
-    str
+  def active_start_end
+    active_start_time = Time.parse(active_start)
+    active_end_time = active_start_time + active_for * 3600
+    [active_start_time, active_end_time]
   end
 
-  attr_reader :dry_run, :src_dir, :dest_dir, :tmp_dir,
-              :thread_count, :batch_count,
-              :before, :after, :bak_dir
+  def to_s
+    <<~HEREDOC
+      src_dir: #{src_dir}
+      dest_dir: #{dest_dir}
+      tmp_dir: #{tmp_dir}
+      bak_dir: #{bak_dir}
+      thread_count: #{thread_count}
+      batch_count: #{batch_count}
+      between: #{after} ~ #{before}
+      active: #{active_start} + #{active_for} hours
+    HEREDOC
+  end
+
+  attr_reader(
+    :active_for,
+    :active_start,
+    :after,
+    :bak_dir,
+    :batch_count,
+    :before,
+    :dest_dir,
+    :dry_run,
+    :src_dir,
+    :thread_count,
+    :tmp_dir
+  )
 end

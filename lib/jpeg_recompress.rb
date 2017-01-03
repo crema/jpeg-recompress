@@ -74,8 +74,8 @@ class JpegRecompress < JpegProcess
         end
       rescue StandardError => e
         STDOUT.print('F'.colorize(:red))
-        STDERR.puts("fail: #{src_filename}")
-        STDERR.puts(e)
+        logger.error "fail: #{src_filename}"
+        logger.error e
         skip = true
       ensure
         unless config.dry_run

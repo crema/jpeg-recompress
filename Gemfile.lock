@@ -9,6 +9,8 @@ GEM
   specs:
     CFPropertyList (2.2.8)
     blankslate (3.1.3)
+    bugsnag (5.0.1)
+    byebug (9.0.6)
     colorize (0.8.1)
     concurrent-ruby (1.0.4)
     domain_name (0.5.20161129)
@@ -34,6 +36,8 @@ GEM
       mime-types (>= 1.16, < 3.0)
       netrc (~> 0.7)
     rx (0.0.3)
+    semantic_logger (3.4.0)
+      concurrent-ruby (~> 1.0)
     sqlite3 (1.3.12)
     unf (0.1.4)
       unf_ext
@@ -43,6 +47,8 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  bugsnag
+  byebug
   colorize
   concurrent-ruby
   facter
@@ -52,6 +58,7 @@ DEPENDENCIES
   parallel
   rake
   rx
+  semantic_logger
   sqlite3
 
 BUNDLED WITH

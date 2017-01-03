@@ -1,9 +1,9 @@
 jpeg_recompress:
-  dry_run: true
-  src_dir: /home/ubuntu/다운로드/assets
-  dest_dir: /home/ubuntu/다운로드/converted
-  thread_count: 4
+  dry_run: false
+  src_dir: /Users/csjune/Downloads
+  dest_dir: /Users/csjune/jpgjpg/cnv
+  bak_dir: /Users/csjune/jpgjpg/bak
   batch_count: 1000
-  tmp_dir: /mnt/ram
-  before: 2016-08-20
-  after: 2000-01-01
+  tmp_dir: /Users/csjune/jpgjpg/tmp
+  active_start: '02:00' # in 24-hours
+  active_for: 1 # hours
