@@ -1,11 +1,13 @@
-require_relative 'recompress_db'
 require_relative 'jpeg_process'
+require_relative 'recompress_db'
+require_relative 's3_client'
 
 class JpegRecompress < JpegProcess
   extend Jimson::Handler
 
   def initialize(config)
     super(config, Jimson::Server.new(self, port: 8998), RecompressDb.new)
+    @s3_client = S3Client.new
   end
 
   def status
@@ -49,7 +51,7 @@ class JpegRecompress < JpegProcess
     results = Parallel.map(filenames, in_threads: config.thread_count) do |src_filename|
       return [src_filename, nil] unless File.exist?(src_filename)
 
-      dest_tmp_filename = File.join(config.tmp_dir, "#{tmp_str}#{tmp_count.increment}" + '.jpg')
+      tmp_filename = File.join(config.tmp_dir, "#{tmp_str}#{tmp_count.increment}" + '.jpg')
 
       recompressed_size = 0
       original_size = 0
@@ -62,16 +64,18 @@ class JpegRecompress < JpegProcess
       begin
         nuvo_image do |process|
           image = process.read(src_filename)
-          jpeg = process.lossy(image, dest_tmp_filename, format: :jpeg, quality: :high)
+          jpeg = process.lossy(image, tmp_filename, format: :jpeg, quality: :high)
 
           original_size = image.size
           recompressed_size = jpeg.size
-
-          unless config.dry_run
-            FileUtils.mkdir_p(File.dirname(dest_filename))
-            skip = true if original_size <= recompressed_size
-          end
         end
+
+        unless config.dry_run
+          FileUtils.mkdir_p(File.dirname(dest_filename))
+          skip = true if original_size <= recompressed_size
+        end
+
+        @s3_client.put_object(tmp_filename, filename)
       rescue StandardError => e
         STDOUT.print('F'.colorize(:red))
         logger.error "fail: #{src_filename}"
@@ -83,15 +87,15 @@ class JpegRecompress < JpegProcess
             recompressed_size = original_size
             FileUtils.cp(src_filename, dest_filename) if dest_filename != src_filename
           else
-            FileUtils.mv(dest_tmp_filename, dest_filename)
+            FileUtils.mv(tmp_filename, dest_filename)
           end
         end
 
-        File.delete(dest_tmp_filename) if File.exist?(dest_tmp_filename)
+        File.delete(tmp_filename) if File.exist?(tmp_filename)
 
-        prog_char = skip ? 'S'.colorize(:blue) : '.'.colorize(:green)
-        STDOUT.print prog_char
+        Utils.print_skip_or_dot(skip)
       end
+
       [src_filename, recompressed_size]
     end
 
@@ -102,6 +106,8 @@ class JpegRecompress < JpegProcess
       end
     end
   end
+
+  private
 
   def copy_to_bak(src_filename, filename)
     return unless config.bak_dir

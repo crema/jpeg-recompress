@@ -6,4 +6,4 @@ jpeg_recompress:
   batch_count: 1000
   tmp_dir: /Users/csjune/jpgjpg/tmp
   active_start: '02:00' # in 24-hours
-  active_for: 1 # hours
+  active_for: 8 # hours
