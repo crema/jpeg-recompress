@@ -8,14 +8,14 @@ class Config
     @dry_run = config.fetch('dry_run', true)
 
     # directory configs
-    @src_dir = config['src_dir'].to_s
-    @dest_dir = config.fetch('dest_dir', src_dir).to_s
-    @tmp_dir = config.fetch('tmp_dir', '/tmp').to_s
-    @bak_dir = config['bak_dir'].to_s
+    @src_dir = config['src_dir']
+    @dest_dirs = config.fetch('dest_dirs', [src_dir])
+    @tmp_dir = config.fetch('tmp_dir', '/tmp')
+    @bak_dir = config['bak_dir']
 
-    @thread_count = config.fetch('thread_count', Facter.value('processors')['count']).to_i
-    @thread_count = Facter.value('processors')['count'].to_i if @thread_count.zero?
-    @batch_count = config.fetch('batch_count', 100).to_i
+    @thread_count = config.fetch('thread_count', 0)
+    @thread_count = Facter.value('processors')['count'] if @thread_count.zero?
+    @batch_count = config.fetch('batch_count', 100)
 
     # time range for finding target files
     @before = config.fetch('before', Time.now).to_time
@@ -30,8 +30,8 @@ class Config
     File.directory?(src_dir)
   end
 
-  def valid_dest_dir?
-    File.directory?(dest_dir)
+  def valid_dest_dirs?
+    dest_dirs.all? { |d| File.directory? d }
   end
 
   def valid_tmp_dir?
@@ -55,7 +55,7 @@ class Config
   def to_s
     <<~HEREDOC
       src_dir: #{src_dir}
-      dest_dir: #{dest_dir}
+      dest_dirs: #{dest_dirs.join(', ')}
       tmp_dir: #{tmp_dir}
       bak_dir: #{bak_dir}
       thread_count: #{thread_count}
@@ -72,7 +72,7 @@ class Config
     :bak_dir,
     :batch_count,
     :before,
-    :dest_dir,
+    :dest_dirs,
     :dry_run,
     :src_dir,
     :thread_count,

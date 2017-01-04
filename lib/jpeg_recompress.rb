@@ -16,15 +16,15 @@ class JpegRecompress < JpegProcess
                    else
                      Time.now - start_time
                    end
-    count, recompressed_count, skip_count, size, recompressed_size, reduced_size = database.status.map(&:to_i)
+    count, comp_count, skip_count, size, comp_size, reduced_size = database.status.map(&:to_i)
 
     size = Filesize.new(size)
-    reduced_percent = reduced_size.to_f / (recompressed_size + reduced_size).to_f * 100
-    recompressed_size = Filesize.new(recompressed_size)
-    processed_size = Filesize.new(recompressed_size + reduced_size)
+    reduced_percent = reduced_size.to_f / (comp_size + reduced_size).to_f * 100
+    comp_size = Filesize.new(comp_size)
+    processed_size = Filesize.new(comp_size + reduced_size)
     reduced_size = Filesize.new(reduced_size)
 
-    percent = recompressed_count.to_f / count.to_f * 100
+    percent = comp_count.to_f / count.to_f * 100
     percent = 0.0 if percent.nan?
 
     str = ''
@@ -37,9 +37,9 @@ class JpegRecompress < JpegProcess
     str << ", elapsed #{elsapsed_time_str(elapsed_time)}"
 
     str << "\n"
-    str << "recompress #{recompressed_count}/#{count}(#{format('%.2f', percent)}%)"
+    str << "recompress #{comp_count}/#{count}(#{format('%.2f', percent)}%)"
     str << ", skip #{skip_count}"
-    str << ", #{recompressed_size.pretty}/#{processed_size.pretty}/#{size.pretty}"
+    str << ", #{comp_size.pretty}/#{processed_size.pretty}/#{size.pretty}"
     str << ", reduce #{reduced_size.pretty}(#{format('%.2f', reduced_percent)}%)"
 
     str
@@ -48,47 +48,39 @@ class JpegRecompress < JpegProcess
   def process_files(filenames)
     tmp_str = SecureRandom.hex
     tmp_count = Concurrent::AtomicFixnum.new
+
     results = Parallel.map(filenames, in_threads: config.thread_count) do |src_filename|
       return [src_filename, nil] unless File.exist?(src_filename)
 
-      tmp_filename = File.join(config.tmp_dir, "#{tmp_str}#{tmp_count.increment}" + '.jpg')
-
-      recompressed_size = 0
-      original_size = 0
       filename = Pathname.new(src_filename).relative_path_from(Pathname.new(config.src_dir))
-      dest_filename = File.join(config.dest_dir, filename)
-      skip = false
-
       copy_to_bak(src_filename, filename)
 
+      orig_size = 0
+      comp_size = 0
+      tmp_filename = File.join(config.tmp_dir, "#{tmp_str}#{tmp_count.increment}.jpg")
+      dest_filenames = config.dest_dirs.map { |d| File.join(d, filename) }
+      skip = false
+
       begin
-        nuvo_image do |process|
-          image = process.read(src_filename)
-          jpeg = process.lossy(image, tmp_filename, format: :jpeg, quality: :high)
+        orig_size, comp_size = compress_image(src_filename, tmp_filename)
 
-          original_size = image.size
-          recompressed_size = jpeg.size
-        end
+        @s3_client.put_object(tmp_filename, filename) unless config.dry_run
 
-        unless config.dry_run
-          FileUtils.mkdir_p(File.dirname(dest_filename))
-          skip = true if original_size <= recompressed_size
-        end
-
-        @s3_client.put_object(tmp_filename, filename)
+        skip = orig_size <= comp_size
       rescue StandardError => e
-        STDOUT.print('F'.colorize(:red))
+        Utils.print_fail
         logger.error "fail: #{src_filename}"
         logger.error e
         skip = true
       ensure
         unless config.dry_run
-          if skip
-            recompressed_size = original_size
-            FileUtils.cp(src_filename, dest_filename) if dest_filename != src_filename
-          else
-            FileUtils.mv(tmp_filename, dest_filename)
-          end
+          dests = if skip
+                    comp_size = orig_size
+                    dest_filenames.select { |fname| fname != src_filename }
+                  else
+                    dest_filenames
+                  end
+          copy_file_to_dests(tmp_filename, dests)
         end
 
         File.delete(tmp_filename) if File.exist?(tmp_filename)
@@ -96,7 +88,7 @@ class JpegRecompress < JpegProcess
         Utils.print_skip_or_dot(skip)
       end
 
-      [src_filename, recompressed_size]
+      [src_filename, comp_size]
     end
 
     print(' '.colorize(:white).on_white)
@@ -110,10 +102,35 @@ class JpegRecompress < JpegProcess
   private
 
   def copy_to_bak(src_filename, filename)
+    return if config.dry_run
     return unless config.bak_dir
 
     bak_filename = File.join(config.bak_dir, filename)
     FileUtils.mkdir_p(File.dirname(bak_filename))
     FileUtils.cp(src_filename, bak_filename) if src_filename != bak_filename
+  end
+
+  def compress_image(from, to)
+    orig_size = 0
+    comp_size = 0
+
+    nuvo_image do |process|
+      image = process.read(from)
+      jpeg = process.lossy(image, to, format: :jpeg, quality: :high)
+
+      orig_size = image.size
+      comp_size = jpeg.size
+    end
+
+    [orig_size, comp_size]
+  end
+
+  def copy_file_to_dests(from, dests)
+    return if config.dry_run
+
+    dests.each do |fname|
+      FileUtils.mkdir_p(File.dirname(fname))
+      FileUtils.cp(from, fname)
+    end
   end
 end

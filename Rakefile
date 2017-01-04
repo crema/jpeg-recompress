@@ -22,7 +22,7 @@ def check_config_dirs(config)
     exit(1)
   end
 
-  unless config.valid_dest_dir?
+  unless config.valid_dest_dirs?
     logger.error('invalid dest dir')
     exit(1)
   end
@@ -38,15 +38,20 @@ def check_config_dirs(config)
   end
 end
 
+def read_config_and_check
+  config = Config.new('config.yml')
+  config.dest_dirs.each { |d| FileUtils.mkdir_p(d) }
+  FileUtils.mkdir_p(config.bak_dir) if config.bak_dir
+
+  check_config_dirs(config)
+  puts config
+
+  config
+end
+
 namespace :jpeg_recompress do
   task :start do
-    config = Config.new('config.yml')
-
-    FileUtils.mkdir_p(config.dest_dir) unless Dir.exist?(config.dest_dir)
-
-    check_config_dirs(config)
-    puts config
-
+    config = read_config_and_check
     JpegRecompress.new(config).run
   end
 
@@ -64,6 +69,8 @@ namespace :jpeg_recompress do
       client = Jimson::Client.new('http://0.0.0.0:8998')
       client.stop
       sleep(3)
+    rescue Errno::ECONNREFUSED
+      logger.warn 'jpeg_recompress is not running'
     rescue StandardError => e
       logger.error e
     end
@@ -73,7 +80,7 @@ namespace :jpeg_recompress do
     begin
       client = Jimson::Client.new('http://0.0.0.0:8998')
       client.ping
-      logger.warn 'jpeg recompress is running'
+      logger.warn 'jpeg_recompress is running'
       exit(1)
     rescue Errno::ECONNREFUSED
       RecompressDb.new.clean
@@ -86,13 +93,7 @@ end
 
 namespace :jpeg_compare do
   task :start do
-    config = Config.new('config.yml')
-
-    FileUtils.mkdir_p(config.dest_dir) unless Dir.exist?(config.dest_dir)
-
-    check_config_dirs(config)
-    puts config
-
+    config = read_config_and_check
     JpegCompare.new(config).run
   end
 
@@ -110,6 +111,8 @@ namespace :jpeg_compare do
       client = Jimson::Client.new('http://0.0.0.0:8999')
       client.stop
       sleep(3)
+    rescue Errno::ECONNREFUSED
+      logger.warn 'jpeg_compare is not running'
     rescue StandardError => e
       logger.error e
     end
@@ -119,7 +122,7 @@ namespace :jpeg_compare do
     begin
       client = Jimson::Client.new('http://0.0.0.0:8999')
       client.ping
-      logger.warn 'jpeg compare is running'
+      logger.warn 'jpeg_compare is running'
       exit(1)
     rescue Errno::ECONNREFUSED
       RecompressDb.new.clean

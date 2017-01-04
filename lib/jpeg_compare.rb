@@ -38,7 +38,7 @@ class JpegCompare < JpegProcess
   def process_files(filenames)
     results = Parallel.map(filenames, in_threads: config.thread_count) do |src_filename|
       filename = Pathname.new(src_filename).relative_path_from(Pathname.new(config.src_dir))
-      dest_filename = File.join(config.dest_dir, filename)
+      dest_filename = File.join(config.dest_dirs.first, filename)
       ssim = 0
 
       if File.exist?(src_filename) || File.exist?(dest_filename)
