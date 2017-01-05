@@ -2,6 +2,8 @@ require 'sqlite3'
 
 class Database
   def initialize(database_file)
+    @logger = SemanticLogger['jpeg-recompress']
+
     @mutex = Mutex.new
     @database_file = database_file
     @database = SQLite3::Database.new(database_file)
@@ -27,19 +29,27 @@ class Database
 
   private
 
-  attr_reader :mutex, :database
+  attr_reader(
+    :database,
+    :logger,
+    :mutex
+  )
 
   def synchronize
     if Thread.current[:db_mutex]
       yield if block_given?
     else
-      result = nil
-      Thread.current[:db_mutex] = mutex
-      mutex.synchronize do
-        result = yield if block_given?
+      begin
+        Thread.current[:db_mutex] = mutex
+        mutex.synchronize do
+          yield if block_given?
+        end
+      rescue StandardError => e
+        logger.error e
+        raise
+      ensure
+        Thread.current[:db_mutex] = nil
       end
-      Thread.current[:db_mutex] = nil
-      result
     end
   end
 
