@@ -1,67 +1,76 @@
-require 'sqlite3'
+require 'digest'
+require 'sequel'
 
 class Database
-  def initialize(database_file)
+  def initialize(name)
     @logger = SemanticLogger['jpeg-recompress']
 
-    @mutex = Mutex.new
-    @database_file = database_file
-    @database = SQLite3::Database.new(database_file)
+    @check_column_name = name
+    @db_config = YAML.load_file('db.yml')['default']
+    @db = Sequel.connect db_config
+
+    @table_name = db_config['table'].to_sym
+    create_jpegfile_table
+
+    @images = db[table_name]
   end
 
   def clean
-    File.delete(database_file) if File.exist?(database_file)
+    db.drop_table table_name
   end
 
   def transaction
-    synchronize do
-      begin_transaction
+    db.transaction do
       yield
-      commit
     end
   end
 
-  def execute(sql)
-    synchronize do
-      database.execute(sql)
+  def update(pairs)
+    id = pairs.delete :id
+    images.where(id: id).update(pairs)
+  end
+
+  def not_all_processed?
+    images.first(check_column_name => nil)
+  end
+
+  def find_not_processed_each(batch_size = 1000)
+    Enumerator.new do |y|
+      offset = 0
+      loop do
+        rows = images.where(check_column_name => nil)
+                     .select(:id, :md5, :filename)
+                     .limit(batch_size, offset)
+                     .all
+        count = rows.count
+        break if count.zero?
+
+        offset += count
+        y << rows
+      end
     end
   end
 
   private
 
   attr_reader(
-    :database,
+    :check_column_name,
+    :db_config,
+    :db,
+    :images,
     :logger,
-    :mutex
+    :table_name
   )
 
-  def synchronize
-    if Thread.current[:db_mutex]
-      yield if block_given?
-    else
-      begin
-        Thread.current[:db_mutex] = mutex
-        mutex.synchronize do
-          yield if block_given?
-        end
-      rescue StandardError => e
-        logger.error e
-        raise
-      ensure
-        Thread.current[:db_mutex] = nil
-      end
+  def create_jpegfile_table
+    db.create_table?(table_name) do
+      primary_key :id
+      String :md5, fixed: true, size: 32, index: true, null: false
+      String :filename, size: 4096, null: false
+      Integer :orig_size
+      Integer :comp_size
+      Float :ssim
+      index [:orig_size, :comp_size]
     end
-  end
-
-  def begin_transaction
-    database.execute <<-SQL
-      BEGIN;
-    SQL
-  end
-
-  def commit
-    database.execute <<-SQL
-      COMMIT;
-    SQL
   end
 end

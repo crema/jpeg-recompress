@@ -5,38 +5,33 @@ class JpegCompare < JpegProcess
   extend Jimson::Handler
 
   def initialize(config)
-    super(config, Jimson::Server.new(self, port: 8999), CompareDb.new)
+    super(config, Jimson::Server.new(self, port: 8998), CompareDb.new)
   end
 
   def status
-    elapsed_time = if complete_time
-                     complete_time - start_time
-                   else
-                     Time.now - start_time
-                   end
-
-    count, compare_count, match_count = database.status.map(&:to_i)
+    elapsed_time = (complete_time || Time.now) - start_time
+    result = database.status
+    count = result[:count]
+    compare_count = result[:compare_count]
+    match_count = result[:match_count]
 
     percent = compare_count.to_f / count.to_f * 100
     percent = 0.0 if percent.nan?
 
-    str = ''
-    str << config.to_s
-    str << "\n"
+    str = "\n#{config}\n"
     str << "start #{start_time}"
     str << ", complete #{complete_time}" if complete_time
     str << ", elapsed #{elsapsed_time_str(elapsed_time)}"
     str << "\n"
-
     str << "compare #{compare_count}/#{count}(#{format('%.2f', percent)}%)"
     str << ", match #{match_count}"
     str << ", unmatch #{compare_count - match_count}"
-
     str
   end
 
-  def process_files(filenames)
-    results = Parallel.map(filenames, in_threads: config.thread_count) do |src_filename|
+  def process_files(rows)
+    results = Parallel.map(rows, in_threads: config.thread_count) do |row|
+      src_filename = row[:filename]
       filename = Pathname.new(src_filename).relative_path_from(Pathname.new(config.src_dir))
       dest_filename = File.join(config.dest_dirs.first, filename)
       ssim = 0
@@ -54,16 +49,18 @@ class JpegCompare < JpegProcess
           ssim = 0
         ensure
           prog_char = ssim > 0.8 ? '.'.colorize(:green) : 'F'.colorize(:red)
-          STDOUT.print prog_char
+          $stdout.print prog_char
         end
       end
-      [src_filename, ssim]
+
+      { id: row[:id], ssim: ssim }
     end
 
     print(' '.colorize(:white).on_white)
+
     database.transaction do
-      results.each do |result|
-        database.set_ssim(result.first, result.last)
+      results.compact.each do |result|
+        database.update result
       end
     end
   end

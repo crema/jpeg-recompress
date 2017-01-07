@@ -31,38 +31,29 @@ class JpegProcess
 
   def stop
     stopped.value = true
-    'STOP jpeg_recompress'
   end
 
-  def run
+  def run(find_only = false)
     @start_time = Time.now
 
     Thread.abort_on_exception = true
 
     Thread.new { run_server }
-    Thread.new { find_files }
+
     Thread.new do
-      active_start_time, active_end_time = config.active_start_end
+      find_files
 
-      while find_files_completed.false? || database.not_processed_count.positive?
-        loop do
-          time_now = Time.now
-          active_start_time, active_end_time = config.active_start_end if active_end_time < time_now
-          break if time_now.between?(active_start_time, active_end_time)
-          sleep 60
-        end
-
-        process_not_processed_files
+      if find_only
+        @complete_time = Time.now
+        print_completed
       end
-
-      @complete_time = Time.now
-      puts(status)
-      puts('COMPLETE')
     end
+
+    Thread.new { process_process } unless find_only
 
     sleep(1) while stopped.false?
 
-    puts('exit jpeg_recompress')
+    logger.info 'exit processing'
     exit(0)
   end
 
@@ -88,12 +79,29 @@ class JpegProcess
     )
   end
 
+  def process_process
+    active_start_time, active_end_time = config.active_start_end
+
+    while find_files_completed.false? || database.not_all_processed?
+      loop do
+        time_now = Time.now
+        active_start_time, active_end_time = config.active_start_end if active_end_time < time_now
+        break if time_now.between?(active_start_time, active_end_time)
+        sleep 60
+      end
+
+      process_not_processed_files
+    end
+
+    @complete_time = Time.now
+    print_completed
+  end
+
   def process_not_processed_files
     filename_enumerator = database.find_not_processed_each(config.batch_count)
     observable = Rx::Observable.of_enumerator(filename_enumerator)
-                               .buffer_with_count(config.batch_count)
     observable.subscribe(
-      ->(files) { process_files(files) },
+      ->(rows) { process_files(rows) },
       ->(err) { logger.error err },
       -> { process_files_completed.value = true }
     )
@@ -114,6 +122,11 @@ class JpegProcess
     :stopped
   )
 
+  def print_completed
+    logger.info 'COMPLETE'
+    logger.info status
+  end
+
   def elsapsed_time_str(elapsed_time)
     days = (elapsed_time / 60 / 60 / 24).floor
     hours = (elapsed_time / 60 / 60).floor % 24
@@ -129,17 +142,11 @@ class JpegProcess
   end
 
   def nuvo_image(&_block)
-    process = if nuvo_images.empty?
-                NuvoImage::Process.new
-              else
-                nuvo_images.pop
-              end
+    process = nuvo_images.empty? ? NuvoImage::Process.new : nuvo_images.pop
     yield process
     process.clear
     nuvo_images << process
   end
-
-  private
 
   def nuvo_images
     @nuvo_images ||= Queue.new

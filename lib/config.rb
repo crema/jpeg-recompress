@@ -10,12 +10,12 @@ class Config
     # directory configs
     @src_dir = config['src_dir']
     @dest_dirs = config.fetch('dest_dirs', [src_dir])
-    @tmp_dir = config.fetch('tmp_dir', '/tmp')
+    @tmp_dir = config.fetch('tmp_dir', '/run/shm')
     @bak_dir = config['bak_dir']
 
-    @thread_count = config.fetch('thread_count', 0)
+    @thread_count = config.fetch('thread_count', 2)
     @thread_count = Facter.value('processors')['count'] if @thread_count.zero?
-    @batch_count = config.fetch('batch_count', 100)
+    @batch_count = config.fetch('batch_count', 1000)
 
     # time range for finding target files
     @before = config.fetch('before', Time.now).to_time

@@ -11,12 +11,14 @@ class JpegRecompress < JpegProcess
   end
 
   def status
-    elapsed_time = if complete_time
-                     complete_time - start_time
-                   else
-                     Time.now - start_time
-                   end
-    count, comp_count, skip_count, size, comp_size, reduced_size = database.status.map(&:to_i)
+    elapsed_time = (complete_time || Time.now) - start_time
+    result = database.status
+    count = result[:count]
+    comp_count = result[:comp_count]
+    skip_count = result[:skip_count]
+    size = result[:size]
+    comp_size = result[:comp_size]
+    reduced_size = result[:reduced_size]
 
     size = Filesize.new(size)
     reduced_percent = reduced_size.to_f / (comp_size + reduced_size).to_f * 100
@@ -27,30 +29,26 @@ class JpegRecompress < JpegProcess
     percent = comp_count.to_f / count.to_f * 100
     percent = 0.0 if percent.nan?
 
-    str = ''
-    str << config.to_s
-    str << "\n"
+    str = "\n#{config}\n"
     str << '[DRY] ' if config.dry_run
     str << "start #{start_time}"
     str << ", complete #{complete_time}" if complete_time
-
     str << ", elapsed #{elsapsed_time_str(elapsed_time)}"
-
     str << "\n"
     str << "recompress #{comp_count}/#{count}(#{format('%.2f', percent)}%)"
     str << ", skip #{skip_count}"
     str << ", #{comp_size.pretty}/#{processed_size.pretty}/#{size.pretty}"
     str << ", reduce #{reduced_size.pretty}(#{format('%.2f', reduced_percent)}%)"
-
     str
   end
 
-  def process_files(filenames)
+  def process_files(rows)
     tmp_str = SecureRandom.hex
     tmp_count = Concurrent::AtomicFixnum.new
 
-    results = Parallel.map(filenames, in_threads: config.thread_count) do |src_filename|
-      return [src_filename, nil] unless File.exist?(src_filename)
+    results = Parallel.map(rows, in_threads: config.thread_count) do |row|
+      src_filename = row[:filename]
+      return nil unless File.exist?(src_filename)
 
       filename = Pathname.new(src_filename).relative_path_from(Pathname.new(config.src_dir))
       copy_to_bak(src_filename, filename)
@@ -88,13 +86,14 @@ class JpegRecompress < JpegProcess
         Utils.print_skip_or_dot(skip)
       end
 
-      [src_filename, comp_size]
+      { id: row[:id], comp_size: comp_size }
     end
 
     print(' '.colorize(:white).on_white)
+
     database.transaction do
-      results.each do |result|
-        database.set_recompressed_size(result.first, result.last)
+      results.compact.each do |result|
+        database.update result
       end
     end
   end

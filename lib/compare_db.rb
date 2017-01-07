@@ -1,63 +1,25 @@
-require 'sqlite3'
+require 'digest'
 require_relative 'database'
 
 class CompareDb < Database
   def initialize
-    super(database_file)
-    execute <<-SQL
-      CREATE TABLE IF NOT EXISTS images(
-        filename TEXT PRIMARY KEY,
-        ssim DOUBLE
-      );
-    SQL
+    super(:ssim)
   end
 
   def insert(filename, _stat)
-    execute <<-SQL
-      INSERT OR IGNORE INTO images VALUES("#{filename}", NULL);
-    SQL
-  end
-
-  def set_ssim(filename, ssim)
-    execute <<-SQL
-      UPDATE images SET ssim = #{ssim} WHERE filename = "#{filename}";
-    SQL
+    md5 = Digest::MD5.hexdigest filename
+    image = images.first(md5: md5, filename: filename)
+    images.insert(md5: md5, filename: filename) unless image
   end
 
   def status
-    rows = execute <<-SQL
-      SELECT COUNT(*), SUM(ssim IS NOT NULL), SUM(ssim > 0.8) FROM images
+    sql = <<-SQL
+      SELECT
+        COUNT(*) AS count
+        , SUM(ssim IS NOT NULL) AS compare_count
+        , COALESCE(SUM(ssim > 0.8), 0) AS match_count
+      FROM #{table_name}
     SQL
-    rows.first
-  end
-
-  def not_processed_count
-    rows = execute <<-SQL
-      SELECT COUNT(*) FROM images where ssim IS NULL
-    SQL
-    rows.first.first
-  end
-
-  def find_not_processed_each(batch_size = 5000)
-    Enumerator.new do |y|
-      offset = 0
-      loop do
-        rows = execute <<-SQL
-          SELECT filename, rowid FROM images WHERE rowid > #{offset} AND ssim IS NULL LIMIT #{batch_size}
-        SQL
-        break if rows.empty?
-
-        offset += rows.last.last
-        rows.each do |row|
-          y << row.first
-        end
-      end
-    end
-  end
-
-  private
-
-  def database_file
-    @database_file ||= File.join(File.dirname(__FILE__), '../compare.db')
+    db[sql].first
   end
 end

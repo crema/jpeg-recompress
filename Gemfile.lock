@@ -36,6 +36,7 @@ GEM
     jmespath (1.3.1)
     mime-types (2.99.3)
     multi_json (1.12.1)
+    mysql2 (0.4.4)
     netrc (0.11.0)
     parallel (1.10.0)
     rack (1.6.5)
@@ -47,7 +48,7 @@ GEM
     rx (0.0.3)
     semantic_logger (3.4.0)
       concurrent-ruby (~> 1.0)
-    sqlite3 (1.3.12)
+    sequel (4.42.0)
     unf (0.1.4)
       unf_ext
     unf_ext (0.0.7.2)
@@ -64,12 +65,13 @@ DEPENDENCIES
   facter
   filesize
   jimson
+  mysql2
   nuvo-image!
   parallel
   rake
   rx
   semantic_logger
-  sqlite3
+  sequel
 
 BUNDLED WITH
    1.13.7

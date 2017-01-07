@@ -4,10 +4,6 @@ jpeg_recompress:
   dest_dirs:
     - /mnt/2/crema-rails-assets
   bak_dir: /mnt/3/crema-rails-assets
-  thread_count: 2
-  batch_count: 1000
-  tmp_dir: /run/shm
   before: 2016-10-14
-  after: 2016-07-01
   active_start: '02:00' # in 24-hours
   active_for: 17 # hours

@@ -31,11 +31,11 @@ module Utils
 
     def print_skip_or_dot(skip)
       prog_char = skip ? 'S'.colorize(:blue) : '.'.colorize(:green)
-      STDOUT.print prog_char
+      $stdout.print prog_char
     end
 
     def print_fail
-      STDOUT.print('F'.colorize(:red))
+      $stdout.print('F'.colorize(:red))
     end
   end
 end
