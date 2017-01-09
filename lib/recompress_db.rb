@@ -6,12 +6,6 @@ class RecompressDb < Database
     super(:comp_size)
   end
 
-  def insert(filename, stat)
-    md5 = Digest::MD5.hexdigest filename
-    image = images.first(md5: md5, filename: filename)
-    images.insert(md5: md5, filename: filename, orig_size: stat.size) unless image
-  end
-
   def status
     sql = <<-SQL
       SELECT

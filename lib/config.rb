@@ -13,9 +13,9 @@ class Config
     @tmp_dir = config.fetch('tmp_dir', '/run/shm')
     @bak_dir = config['bak_dir']
 
-    @thread_count = config.fetch('thread_count', 2)
+    @thread_count = config.fetch('thread_count', 1)
     @thread_count = Facter.value('processors')['count'] if @thread_count.zero?
-    @batch_count = config.fetch('batch_count', 1000)
+    @batch_count = config.fetch('batch_count', 100)
 
     # time range for finding target files
     @before = config.fetch('before', Time.now).to_time

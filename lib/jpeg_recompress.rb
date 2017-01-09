@@ -126,6 +126,7 @@ class JpegRecompress < JpegProcess
 
   def copy_file_to_dests(from, dests)
     return if config.dry_run
+    return unless File.exist?(from)
 
     dests.each do |fname|
       FileUtils.mkdir_p(File.dirname(fname))

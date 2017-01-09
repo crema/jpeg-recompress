@@ -15,6 +15,7 @@ end
 SemanticLogger.add_appender(appender: :bugsnag, level: :error)
 SemanticLogger.add_appender(io: $stderr, formatter: :color)
 logger = SemanticLogger['jpeg-recompress']
+$logger = logger
 
 check_config_dirs = lambda do |config|
   unless config.valid_src_dir?
@@ -49,28 +50,19 @@ read_config_and_check = lambda do
   config
 end
 
-namespace :jpeg_recompress do
-  task :start do
-    config = read_config_and_check.call
-    JpegRecompress.new(config).run
-  end
-
-  task :find do
-    config = read_config_and_check.call
-    JpegRecompress.new(config).run(true)
-  end
+task :recompress do
+  config = read_config_and_check.call
+  JpegRecompress.new(config).process
 end
 
-namespace :jpeg_compare do
-  task :start do
-    config = read_config_and_check.call
-    JpegCompare.new(config).run
-  end
+task :compare do
+  config = read_config_and_check.call
+  JpegCompare.new(config).process
+end
 
-  task :find do
-    config = read_config_and_check.call
-    JpegCompare.new(config).run(true)
-  end
+task :find do
+  config = read_config_and_check.call
+  JpegRecompress.new(config).find
 end
 
 task :status do

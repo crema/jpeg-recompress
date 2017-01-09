@@ -33,7 +33,15 @@ class JpegProcess
     stopped.value = true
   end
 
-  def run(find_only = false)
+  def find
+    run_internal :find
+  end
+
+  def process
+    run_internal :process
+  end
+
+  def run_internal(run_type)
     @start_time = Time.now
 
     Thread.abort_on_exception = true
@@ -41,15 +49,16 @@ class JpegProcess
     Thread.new { run_server }
 
     Thread.new do
-      find_files
-
-      if find_only
-        @complete_time = Time.now
-        print_completed
+      case run_type
+      when :find then find_files
+      when :process then process_internal
       end
-    end
 
-    Thread.new { process_process } unless find_only
+      @complete_time = Time.now
+      print_completed
+
+      stopped.value = true
+    end
 
     sleep(1) while stopped.false?
 
@@ -73,13 +82,14 @@ class JpegProcess
         database.transaction do
           entries.each { |entry| database.insert(entry.first, entry.last) }
         end
+        sleep 0.1
       end,
       ->(err) { logger.error err },
       -> { find_files_completed.value = true }
     )
   end
 
-  def process_process
+  def process_internal
     active_start_time, active_end_time = config.active_start_end
 
     while find_files_completed.false? || database.not_all_processed?
@@ -92,9 +102,6 @@ class JpegProcess
 
       process_not_processed_files
     end
-
-    @complete_time = Time.now
-    print_completed
   end
 
   def process_not_processed_files

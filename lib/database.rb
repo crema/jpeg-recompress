@@ -25,6 +25,12 @@ class Database
     end
   end
 
+  def insert(filename, stat)
+    md5 = Digest::MD5.hexdigest filename
+    image = images.first(md5: md5, filename: filename)
+    images.insert(md5: md5, filename: filename, orig_size: stat.size) unless image
+  end
+
   def update(pairs)
     id = pairs.delete :id
     images.where(id: id).update(pairs)
@@ -36,16 +42,17 @@ class Database
 
   def find_not_processed_each(batch_size = 1000)
     Enumerator.new do |y|
-      offset = 0
+      last_id = 0
       loop do
         rows = images.where(check_column_name => nil)
+                     .where('id > ?', last_id)
                      .select(:id, :md5, :filename)
-                     .limit(batch_size, offset)
+                     .order(:id)
+                     .limit(batch_size)
                      .all
-        count = rows.count
-        break if count.zero?
+        break if rows.count.zero?
 
-        offset += count
+        last_id = rows.last[:id]
         y << rows
       end
     end

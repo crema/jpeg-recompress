@@ -11,9 +11,16 @@ module Utils
           entries = Dir.entries(current_entry.first)
                        .select { |entry| !['.', '..'].include?(entry) }
                        .map { |entry| File.join(current_entry.first, entry) }
-                       .map { |entry| [entry, File.stat(entry)] }
+                       .map do |entry|
+                         begin
+                           [entry, File.stat(entry)]
+                         rescue StandardError => e
+                           $logger.error e
+                           nil
+                         end
+                       end
 
-          entries.each do |entry|
+          entries.compact.each do |entry|
             path, stat = entry
 
             if stat.directory?

@@ -6,12 +6,6 @@ class CompareDb < Database
     super(:ssim)
   end
 
-  def insert(filename, _stat)
-    md5 = Digest::MD5.hexdigest filename
-    image = images.first(md5: md5, filename: filename)
-    images.insert(md5: md5, filename: filename) unless image
-  end
-
   def status
     sql = <<-SQL
       SELECT
