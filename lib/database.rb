@@ -2,10 +2,9 @@ require 'digest'
 require 'sequel'
 
 class Database
-  def initialize(name)
+  def initialize
     @logger = SemanticLogger['jpeg-recompress']
 
-    @check_column_name = name
     @db_config = YAML.load_file('db.yml')['default']
     @db = Sequel.connect db_config
 
@@ -36,15 +35,11 @@ class Database
     images.where(id: id).update(pairs)
   end
 
-  def not_all_processed?
-    images.first(check_column_name => nil)
-  end
-
-  def find_not_processed_each(batch_size = 1000)
+  def find_not_processed_each(batch_size, nil_column_name)
     Enumerator.new do |y|
       last_id = 0
       loop do
-        rows = images.where(check_column_name => nil)
+        rows = images.where(nil_column_name => nil)
                      .where('id > ?', last_id)
                      .select(:id, :md5, :filename)
                      .order(:id)
@@ -58,10 +53,34 @@ class Database
     end
   end
 
+  def recomp_status
+    sql = <<-SQL
+      SELECT
+        COUNT(*) AS count
+        , SUM(comp_size IS NOT NULL) AS comp_count
+        , COALESCE(SUM(comp_size = orig_size), 0) AS skip_count
+        , SUM(orig_size) AS size
+        , COALESCE(SUM(comp_size), 0) AS comp_size
+        , COALESCE(SUM(orig_size - comp_size), 0) AS reduced_size
+      FROM #{table_name}
+    SQL
+    db[sql].first
+  end
+
+  def compare_status
+    sql = <<-SQL
+      SELECT
+        COUNT(*) AS count
+        , SUM(ssim IS NOT NULL) AS compare_count
+        , COALESCE(SUM(ssim > 0.8), 0) AS match_count
+      FROM #{table_name}
+    SQL
+    db[sql].first
+  end
+
   private
 
   attr_reader(
-    :check_column_name,
     :db_config,
     :db,
     :images,
@@ -79,5 +98,17 @@ class Database
       Float :ssim
       index [:orig_size, :comp_size]
     end
+  end
+end
+
+class RecompressDb < Database
+  def find_not_processed_each(batch_size)
+    super(batch_size, :comp_size)
+  end
+end
+
+class CompareDb < Database
+  def find_not_processed_each(batch_size)
+    super(batch_size, :ssim)
   end
 end

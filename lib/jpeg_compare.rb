@@ -1,4 +1,3 @@
-require_relative 'compare_db'
 require_relative 'jpeg_process'
 
 class JpegCompare < JpegProcess
@@ -10,7 +9,7 @@ class JpegCompare < JpegProcess
 
   def status
     elapsed_time = (complete_time || Time.now) - start_time
-    result = database.status
+    result = database.compare_status
     count = result[:count]
     compare_count = result[:compare_count]
     match_count = result[:match_count]

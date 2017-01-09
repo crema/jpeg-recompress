@@ -1,5 +1,4 @@
 require_relative 'jpeg_process'
-require_relative 'recompress_db'
 require_relative 's3_client'
 
 class JpegRecompress < JpegProcess
@@ -12,7 +11,7 @@ class JpegRecompress < JpegProcess
 
   def status
     elapsed_time = (complete_time || Time.now) - start_time
-    result = database.status
+    result = database.recomp_status
     count = result[:count]
     comp_count = result[:comp_count]
     skip_count = result[:skip_count]

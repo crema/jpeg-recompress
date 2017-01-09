@@ -52,17 +52,17 @@ end
 
 task :recompress do
   config = read_config_and_check.call
-  JpegRecompress.new(config).process
+  JpegRecompress.new(config).run :process
 end
 
 task :compare do
   config = read_config_and_check.call
-  JpegCompare.new(config).process
+  JpegCompare.new(config).run :process
 end
 
 task :find do
   config = read_config_and_check.call
-  JpegRecompress.new(config).find
+  JpegRecompress.new(config).run :find
 end
 
 task :status do

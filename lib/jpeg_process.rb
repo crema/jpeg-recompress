@@ -10,6 +10,7 @@ require 'pathname'
 require 'rx'
 require 'time'
 require_relative 'config'
+require_relative 'database'
 require_relative 'utils'
 
 class JpegProcess
@@ -17,12 +18,9 @@ class JpegProcess
     @logger = SemanticLogger['jpeg-recompress']
 
     @stopped = Concurrent::AtomicBoolean.new(false)
-    @find_files_completed = Concurrent::AtomicBoolean.new(false)
-    @process_files_completed = Concurrent::AtomicBoolean.new(false)
     @server = server
     @database = database
     @config = config
-    @snooze = true
   end
 
   def ping
@@ -33,15 +31,7 @@ class JpegProcess
     stopped.value = true
   end
 
-  def find
-    run_internal :find
-  end
-
-  def process
-    run_internal :process
-  end
-
-  def run_internal(run_type)
+  def run(run_type)
     @start_time = Time.now
 
     Thread.abort_on_exception = true
@@ -54,9 +44,7 @@ class JpegProcess
       when :process then process_internal
       end
 
-      @complete_time = Time.now
       print_completed
-
       stopped.value = true
     end
 
@@ -85,47 +73,43 @@ class JpegProcess
         sleep 0.1
       end,
       ->(err) { logger.error err },
-      -> { find_files_completed.value = true }
+      -> { complete_time = Time.now }
     )
   end
 
   def process_internal
     active_start_time, active_end_time = config.active_start_end
 
-    while find_files_completed.false? || database.not_all_processed?
-      loop do
-        time_now = Time.now
-        active_start_time, active_end_time = config.active_start_end if active_end_time < time_now
-        break if time_now.between?(active_start_time, active_end_time)
-        sleep 60
-      end
-
-      process_not_processed_files
-    end
-  end
-
-  def process_not_processed_files
     filename_enumerator = database.find_not_processed_each(config.batch_count)
     observable = Rx::Observable.of_enumerator(filename_enumerator)
     observable.subscribe(
-      ->(rows) { process_files(rows) },
+      lambda do |rows|
+        loop do
+          time_now = Time.now
+          active_start_time, active_end_time = config.active_start_end if active_end_time < time_now
+          break if time_now.between?(active_start_time, active_end_time)
+          sleep 60
+        end
+
+        process_files(rows)
+      end,
       ->(err) { logger.error err },
-      -> { process_files_completed.value = true }
+      -> { complete_time = Time.now }
     )
   end
 
   protected
 
-  attr_reader(
+  attr_accessor(
     :complete_time,
+    :start_time
+  )
+
+  attr_reader(
     :config,
     :database,
-    :find_files_completed,
     :logger,
-    :process_files_completed,
     :server,
-    :snooze,
-    :start_time,
     :stopped
   )
 
