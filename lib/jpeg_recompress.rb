@@ -46,43 +46,40 @@ class JpegRecompress < JpegProcess
     tmp_count = Concurrent::AtomicFixnum.new
 
     results = Parallel.map(rows, in_threads: config.thread_count) do |row|
-      src_filename = row[:filename]
-      return nil unless File.exist?(src_filename)
+      src_filepath = row[:filename]
+      return nil unless File.exist?(src_filepath)
 
-      filename = Pathname.new(src_filename).relative_path_from(Pathname.new(config.src_dir))
-      copy_to_bak(src_filename, filename)
-
-      orig_size = 0
-      comp_size = 0
-      tmp_filename = File.join(config.tmp_dir, "#{tmp_str}#{tmp_count.increment}.jpg")
-      dest_filenames = config.dest_dirs.map { |d| File.join(d, filename) }
-      skip = false
+      relative_filepath = Pathname.new(src_filepath).relative_path_from(Pathname.new(config.src_dir))
+      orig_size = row[:orig_size]
+      comp_size = orig_size
+      tmp_filepath = File.join(config.tmp_dir, "#{tmp_str}#{tmp_count.increment}.jpg")
+      compressed = false
 
       begin
-        orig_size, comp_size = compress_image(src_filename, tmp_filename)
-
-        @s3_client.put_object(tmp_filename, filename) unless config.dry_run
-
-        skip = orig_size <= comp_size
-      rescue StandardError => e
-        Utils.print_fail
-        logger.error "fail: #{src_filename}"
-        logger.error e
-        skip = true
-      ensure
-        unless config.dry_run
-          dests = if skip
-                    comp_size = orig_size
-                    dest_filenames.select { |fname| fname != src_filename }
-                  else
-                    dest_filenames
-                  end
-          copy_file_to_dests(tmp_filename, dests)
+        if row[:is_jpeg] && row[:ctime] < config.upload_after
+          orig_size, comp_size = compress_image(src_filepath, tmp_filepath)
+          compressed = comp_size < orig_size
+        else
+          FileUtils.cp(src_filepath, tmp_filepath)
         end
 
-        File.delete(tmp_filename) if File.exist?(tmp_filename)
+        upload_to_s3(tmp_filepath, relative_filepath)
+      rescue StandardError => e
+        logger.error "fail: #{src_filepath}", e
+        comp_size = -1
+      ensure
+        if !config.dry_run && config.dst_dir && (compressed || config.src_dir != config.dst_dir)
+          dst_filepath = File.join(config.dst_dir, relative_filepath)
+          copy_file_to_dst(tmp_filepath, dst_filepath)
+        end
 
-        Utils.print_skip_or_dot(skip)
+        File.delete(tmp_filepath) if File.exist?(tmp_filepath)
+
+        if comp_size == -1
+          Utils.print_fail
+        else
+          Utils.print_dot_or_skip(compressed)
+        end
       end
 
       { id: row[:id], comp_size: comp_size }
@@ -99,15 +96,6 @@ class JpegRecompress < JpegProcess
 
   private
 
-  def copy_to_bak(src_filename, filename)
-    return if config.dry_run
-    return unless config.bak_dir
-
-    bak_filename = File.join(config.bak_dir, filename)
-    FileUtils.mkdir_p(File.dirname(bak_filename))
-    FileUtils.cp(src_filename, bak_filename) if src_filename != bak_filename
-  end
-
   def compress_image(from, to)
     orig_size = 0
     comp_size = 0
@@ -123,13 +111,14 @@ class JpegRecompress < JpegProcess
     [orig_size, comp_size]
   end
 
-  def copy_file_to_dests(from, dests)
-    return if config.dry_run
+  def upload_to_s3(full_path, key)
+    @s3_client.put_object(full_path, key) unless config.dry_run
+  end
+
+  def copy_file_to_dst(from, dst)
     return unless File.exist?(from)
 
-    dests.each do |fname|
-      FileUtils.mkdir_p(File.dirname(fname))
-      FileUtils.cp(from, fname)
-    end
+    FileUtils.mkdir_p(File.dirname(dst))
+    FileUtils.cp(from, dst)
   end
 end

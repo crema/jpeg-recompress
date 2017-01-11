@@ -23,8 +23,8 @@ check_config_dirs = lambda do |config|
     exit(1)
   end
 
-  unless config.valid_dest_dirs?
-    logger.error 'invalid dest dir'
+  unless config.valid_dst_dir?
+    logger.error 'invalid dst dir'
     exit(1)
   end
 
@@ -32,17 +32,11 @@ check_config_dirs = lambda do |config|
     logger.error 'invalid tmp dir'
     exit(1)
   end
-
-  unless config.valid_bak_dir?
-    logger.error 'invalid bak dir'
-    exit(1)
-  end
 end
 
 read_config_and_check = lambda do
   config = Config.new('config.yml')
-  config.dest_dirs.each { |d| FileUtils.mkdir_p(d) }
-  FileUtils.mkdir_p(config.bak_dir) if config.bak_dir
+  FileUtils.mkdir_p config.dst_dir if config.dst_dir
 
   check_config_dirs.call config
   logger.info config

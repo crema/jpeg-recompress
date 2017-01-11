@@ -30,16 +30,20 @@ class JpegCompare < JpegProcess
 
   def process_files(rows)
     results = Parallel.map(rows, in_threads: config.thread_count) do |row|
-      src_filename = row[:filename]
-      filename = Pathname.new(src_filename).relative_path_from(Pathname.new(config.src_dir))
-      dest_filename = File.join(config.dest_dirs.first, filename)
+      return nil unless config.dst_dir
+
+      src_filepath = row[:filename]
+      return nil unless File.exist?(src_filepath)
+
+      relative_filepath = Pathname.new(src_filepath).relative_path_from(Pathname.new(config.src_dir))
+      dst_filepath = File.join(config.dst_dir, relative_filepath)
       ssim = 0
 
-      if File.exist?(src_filename) || File.exist?(dest_filename)
+      if File.exist?(src_filepath) || File.exist?(dst_filepath)
         begin
           nuvo_image do |process|
-            image1 = process.read(src_filename)
-            image2 = process.read(dest_filename)
+            image1 = process.read(src_filepath)
+            image2 = process.read(dst_filepath)
 
             ssim = process.compare(image1, image2)
           end

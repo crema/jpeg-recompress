@@ -6,35 +6,28 @@ module Utils
 
         until dirs.empty?
           dirs.sort_by! { |d| d.last.ino }
-          current_entry = dirs.pop
+          cur_dir = dirs.pop.first
 
-          entries = Dir.entries(current_entry.first)
+          entries = Dir.entries(cur_dir)
                        .select { |entry| !['.', '..'].include?(entry) }
-                       .map { |entry| File.join(current_entry.first, entry) }
                        .map do |entry|
                          begin
-                           [entry, File.stat(entry)]
+                           fullpath = File.join(cur_dir, entry)
+                           [fullpath, File.stat(fullpath)]
                          rescue StandardError => e
                            $logger.error e
                            nil
                          end
                        end
-
-          entries.compact.each do |entry|
-            stat = entry.last
-
-            if stat.directory?
-              dirs.push(entry)
-            elsif stat.ctime.between?(after, before)
-              y << entry
-            end
-          end
+          dir_entries, file_entries = entries.compact.partition { |entry| entry.last.directory? }
+          dirs += dir_entries
+          file_entries.each { |entry| y << entry if entry.last.ctime.between?(after, before) }
         end
       end
     end
 
-    def print_skip_or_dot(skip)
-      prog_char = skip ? 'S'.colorize(:blue) : '.'.colorize(:green)
+    def print_dot_or_skip(compressed)
+      prog_char = compressed ? '.'.colorize(:green) : 'S'.colorize(:blue)
       $stdout.print prog_char
     end
 

@@ -46,7 +46,7 @@ class Database
       loop do
         rows = images.where(nil_column_name => nil)
                      .where('id > ?', last_id)
-                     .select(:id, :md5, :filename)
+                     .select(:id, :md5, :filename, :orig_size, :is_jpeg, :ctime)
                      .order(:id)
                      .limit(batch_size)
                      .all

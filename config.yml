@@ -1,9 +1,7 @@
 jpeg_recompress:
   dry_run: false
   src_dir: /mnt/1/crema-rails-assets
-  dest_dirs:
-    - /mnt/2/crema-rails-assets
-  bak_dir: /mnt/3/crema-rails-assets
   before: 2017-01-01
   active_start: '02:00' # in 24-hours
   active_for: 17 # hours
+  upload_after: 2016-10-14

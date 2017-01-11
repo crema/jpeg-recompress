@@ -17,11 +17,10 @@ sudo apt-get install libsqlite3-dev
 
 ```bash
 bundle install
-bundle exec rake jpeg_recompress:start
-
-bundle exec rake jpeg_recompress:status
-
-bundle exec rake jpeg_recompress:stop
+bundle exec rake find
+bundle exec rake recompress
+bundle exec rake status
+bundle exec rake stop
 ```
 
 ## config
@@ -32,10 +31,7 @@ config.yml
 jpeg_recompress:
   dry_run: true
   src_dir: /mnt/1/crema-rails-assets
-  dest_dirs:
-    - /mnt/1/crema-rails-assets
-    - /mnt/2/crema-rails-assets
-  bak_dir: /mnt/3/crema-rails-assets
+  dst_dir: /mnt/2/crema-rails-assets
   batch_count: 1000
   tmp_dir: /run/shm
   active_start: '02:00' # in 24-hours
