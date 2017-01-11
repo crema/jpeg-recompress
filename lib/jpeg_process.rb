@@ -14,6 +14,8 @@ require_relative 'database'
 require_relative 'utils'
 
 class JpegProcess
+  JPEG_EXT = ['.jpg', '.jpeg'].freeze
+
   def initialize(config, server, database)
     @logger = SemanticLogger['jpeg-recompress']
 
@@ -68,9 +70,11 @@ class JpegProcess
     observable.subscribe(
       lambda do |entries|
         database.transaction do
-          entries.each { |entry| database.insert(entry.first, entry.last) }
+          entries.each do |path, stat|
+            is_jpeg = JPEG_EXT.include?(File.extname(path).downcase)
+            database.insert(path, stat.size, is_jpeg, stat.ctime)
+          end
         end
-        sleep 0.1
       end,
       ->(err) { logger.error err },
       -> { complete_time = Time.now }

@@ -24,10 +24,15 @@ class Database
     end
   end
 
-  def insert(filename, stat)
+  def insert(filename, orig_size, is_jpeg, ctime)
     md5 = Digest::MD5.hexdigest filename
     image = images.first(md5: md5, filename: filename)
-    images.insert(md5: md5, filename: filename, orig_size: stat.size) unless image
+    args = { md5: md5, filename: filename, orig_size: orig_size, is_jpeg: is_jpeg, ctime: ctime }
+    if image
+      images.where(id: image[:id]).update(args)
+    else
+      images.insert(args)
+    end
   end
 
   def update(pairs)
@@ -96,6 +101,9 @@ class Database
       Integer :orig_size
       Integer :comp_size
       Float :ssim
+      TrueClass :is_jpeg, null: false, default: true
+      DateTime :ctime, index: true
+
       index [:orig_size, :comp_size]
     end
   end

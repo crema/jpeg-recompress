@@ -21,14 +21,11 @@ module Utils
                        end
 
           entries.compact.each do |entry|
-            path, stat = entry
+            stat = entry.last
 
             if stat.directory?
               dirs.push(entry)
-              next
-            end
-
-            if ['.jpg', '.jpeg'].include?(File.extname(path).downcase) && stat.ctime.between?(after, before)
+            elsif stat.ctime.between?(after, before)
               y << entry
             end
           end
