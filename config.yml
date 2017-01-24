@@ -5,3 +5,4 @@ jpeg_recompress:
   active_start: '02:00' # in 24-hours
   active_for: 17 # hours
   upload_after: 2016-10-14
+  thread_count: 4

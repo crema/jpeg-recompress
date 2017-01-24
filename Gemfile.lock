@@ -1,23 +1,24 @@
 GIT
   remote: https://github.com/crema/nuvo-image
-  revision: 62d2a1b6035322837e51dd8d243ddbbad5bda928
+  revision: 38f5b9e14f32d66804cc145d791da006357e0b05
+  tag: 0.5.3
   specs:
-    nuvo-image (0.5.2)
+    nuvo-image (0.5.3)
 
 GEM
   remote: https://rubygems.org/
   specs:
     CFPropertyList (2.2.8)
-    aws-sdk (2.6.44)
-      aws-sdk-resources (= 2.6.44)
-    aws-sdk-core (2.6.44)
+    aws-sdk (2.7.0)
+      aws-sdk-resources (= 2.7.0)
+    aws-sdk-core (2.7.0)
       aws-sigv4 (~> 1.0)
       jmespath (~> 1.0)
-    aws-sdk-resources (2.6.44)
-      aws-sdk-core (= 2.6.44)
+    aws-sdk-resources (2.7.0)
+      aws-sdk-core (= 2.7.0)
     aws-sigv4 (1.0.0)
     blankslate (3.1.3)
-    bugsnag (5.0.1)
+    bugsnag (5.1.0)
     byebug (9.0.6)
     colorize (0.8.1)
     concurrent-ruby (1.0.4)
@@ -48,7 +49,7 @@ GEM
     rx (0.0.3)
     semantic_logger (3.4.1)
       concurrent-ruby (~> 1.0)
-    sequel (4.42.0)
+    sequel (4.42.1)
     unf (0.1.4)
       unf_ext
     unf_ext (0.0.7.2)
