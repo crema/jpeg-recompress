@@ -5,7 +5,7 @@ class JpegRecompress < JpegProcess
   extend Jimson::Handler
 
   def initialize(config)
-    super(config, Jimson::Server.new(self, port: 8998), RecompressDb.new)
+    super(config, Jimson::Server.new(self, host: 'localhost', port: 8998), RecompressDb.new)
     @s3_client = S3Client.new
   end
 

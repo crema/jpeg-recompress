@@ -4,7 +4,7 @@ class JpegCompare < JpegProcess
   extend Jimson::Handler
 
   def initialize(config)
-    super(config, Jimson::Server.new(self, port: 8998), CompareDb.new)
+    super(config, Jimson::Server.new(self, host: 'localhost', port: 8998), CompareDb.new)
   end
 
   def status

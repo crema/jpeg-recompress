@@ -61,7 +61,7 @@ end
 
 task :status do
   begin
-    client = Jimson::Client.new('http://0.0.0.0:8998')
+    client = Jimson::Client.new('http://localhost:8998')
     logger.info client.status
   rescue StandardError => e
     logger.error e
@@ -70,7 +70,7 @@ end
 
 task :stop do
   begin
-    client = Jimson::Client.new('http://0.0.0.0:8998')
+    client = Jimson::Client.new('http://localhost:8998')
     client.stop
     sleep(3)
   rescue Errno::ECONNREFUSED
@@ -82,7 +82,7 @@ end
 
 task :clean do
   begin
-    client = Jimson::Client.new('http://0.0.0.0:8998')
+    client = Jimson::Client.new('http://localhost:8998')
     client.ping
     logger.warn 'Still processing...'
     exit(1)
