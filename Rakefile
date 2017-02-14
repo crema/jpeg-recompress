@@ -49,6 +49,11 @@ task :recompress do
   JpegRecompress.new(config).run :process
 end
 
+task :recompress_failed do
+  config = read_config_and_check.call
+  JpegRecompress.new(config).run :process_failed
+end
+
 task :compare do
   config = read_config_and_check.call
   JpegCompare.new(config).run :process

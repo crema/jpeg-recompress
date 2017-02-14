@@ -44,6 +44,7 @@ class JpegProcess
       case run_type
       when :find then find_files
       when :process then process_internal
+      when :process_failed then process_internal(for_failed: true)
       end
 
       print_completed
@@ -81,10 +82,14 @@ class JpegProcess
     )
   end
 
-  def process_internal
+  def process_internal(for_failed: false)
     active_start_time, active_end_time = config.active_start_end
 
-    filename_enumerator = database.find_not_processed_each(config.batch_count)
+    filename_enumerator = if for_failed
+                            database.find_failed_each(config.batch_count)
+                          else
+                            database.find_not_processed_each(config.batch_count)
+                          end
     observable = Rx::Observable.of_enumerator(filename_enumerator)
     observable.subscribe(
       lambda do |rows|

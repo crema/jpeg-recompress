@@ -113,6 +113,24 @@ class RecompressDb < Database
   def find_not_processed_each(batch_size)
     super(batch_size, :comp_size)
   end
+
+  def find_failed_each(batch_size)
+    Enumerator.new do |y|
+      last_id = 0
+      loop do
+        rows = images.where(comp_size: -1)
+                     .where('id > ?', last_id)
+                     .select(:id, :md5, :filename, :orig_size, :is_jpeg, :ctime)
+                     .order(:id)
+                     .limit(batch_size)
+                     .all
+        break if rows.count.zero?
+
+        last_id = rows.last[:id]
+        y << rows
+      end
+    end
+  end
 end
 
 class CompareDb < Database
