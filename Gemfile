@@ -15,4 +15,4 @@ gem 'rx'
 gem 'semantic_logger'
 gem 'sequel'
 
-gem 'nuvo-image', git: 'https://github.com/crema/nuvo-image', tag: '0.5.3'
+gem 'nuvo-image', git: 'https://github.com/crema/nuvo-image', tag: '0.5.4'
