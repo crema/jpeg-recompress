@@ -1,6 +1,5 @@
 require 'colorize'
 require 'concurrent'
-require 'facter'
 require 'filesize'
 require 'fileutils'
 require 'jimson'

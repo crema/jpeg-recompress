@@ -1,7 +1,6 @@
 require 'aws-sdk'
 require 'bugsnag'
 require 'byebug'
-require 'facter'
 require 'jimson'
 require 'rake'
 require 'semantic_logger'

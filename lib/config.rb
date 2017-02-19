@@ -1,4 +1,3 @@
-require 'facter'
 require 'yaml'
 
 class Config
@@ -13,7 +12,7 @@ class Config
     @tmp_dir = config.fetch('tmp_dir', '/run/shm')
 
     @thread_count = config.fetch('thread_count', 2)
-    @thread_count = Facter.value('processors')['count'] if @thread_count.zero?
+    @thread_count = 2 if @thread_count.zero?
     @batch_count = config.fetch('batch_count', 1000)
 
     # time range for finding target files
