@@ -1,9 +1,9 @@
 GIT
   remote: https://github.com/crema/nuvo-image
-  revision: c431d817471b257321b095c594da67ab3096f15c
-  tag: 0.5.5
+  revision: 24a7a06933969d90708f09de384e033da068d3e1
+  tag: 0.5.6
   specs:
-    nuvo-image (0.5.5)
+    nuvo-image (0.5.6)
 
 GEM
   remote: https://rubygems.org/
