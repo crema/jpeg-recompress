@@ -6,7 +6,6 @@ require 'jimson'
 require 'nuvo_image'
 require 'parallel'
 require 'pathname'
-require 'rx'
 require 'time'
 require_relative 'config'
 require_relative 'database'
@@ -65,20 +64,18 @@ class JpegProcess
 
   def find_files
     dir_enumerator = Utils.traversal_dir(config.src_dir, config.after, config.before)
-    observable = Rx::Observable.of_enumerator(dir_enumerator)
-                               .buffer_with_count(config.batch_count)
-    observable.subscribe(
-      lambda do |entries|
-        database.transaction do
-          entries.each do |path, stat|
-            is_jpeg = JPEG_EXT.include?(File.extname(path).downcase)
-            database.insert(path, stat.size, is_jpeg, stat.ctime)
-          end
+    dir_enumerator.each_slice(config.batch_count) do |entries|
+      database.transaction do
+        entries.each do |path, stat|
+          is_jpeg = JPEG_EXT.include?(File.extname(path).downcase)
+          database.insert(path, stat.size, is_jpeg, stat.ctime)
         end
-      end,
-      ->(err) { logger.error err },
-      -> { complete_time = Time.now }
-    )
+      end
+    end
+
+    complete_time = Time.now
+  rescue StandardError => e
+    logger.error e
   end
 
   def process_internal(for_failed: false)
@@ -89,21 +86,21 @@ class JpegProcess
                           else
                             database.find_not_processed_each(config.batch_count)
                           end
-    observable = Rx::Observable.of_enumerator(filename_enumerator)
-    observable.subscribe(
-      lambda do |rows|
-        loop do
-          time_now = Time.now
-          active_start_time, active_end_time = config.active_start_end if active_end_time < time_now
-          break if time_now.between?(active_start_time, active_end_time)
-          sleep 60
-        end
+    filename_enumerator.each do |rows|
+      loop do
+        time_now = Time.now
+        active_start_time, active_end_time = config.active_start_end if active_end_time < time_now
+        break if time_now.between?(active_start_time, active_end_time)
+        sleep 60
+      end
 
-        process_files(rows)
-      end,
-      ->(err) { logger.error err },
-      -> { complete_time = Time.now }
-    )
+      process_files(rows)
+      GC.start
+    end
+
+    complete_time = Time.now
+  rescue StandardError => e
+    logger.error e
   end
 
   protected
