@@ -65,7 +65,7 @@ class JpegRecompress < JpegProcess
 
         upload_to_s3(tmp_filepath, relative_filepath)
       rescue StandardError => e
-        logger.error "fail: #{src_filepath}", e
+        # logger.error "fail: #{src_filepath}", e
         comp_size = -1
       ensure
         if !config.dry_run && config.dst_dir && (compressed || config.src_dir != config.dst_dir)
