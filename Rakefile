@@ -43,6 +43,11 @@ read_config_and_check = lambda do
   config
 end
 
+task :find do
+  config = read_config_and_check.call
+  JpegRecompress.new(config).run :find
+end
+
 task :recompress do
   config = read_config_and_check.call
   JpegRecompress.new(config).run :process
@@ -53,14 +58,19 @@ task :recompress_failed do
   JpegRecompress.new(config).run :process_failed
 end
 
+task :upload do
+  config = read_config_and_check.call
+  JpegRecompress.new(config).run :upload
+end
+
+task :upload_failed do
+  config = read_config_and_check.call
+  JpegRecompress.new(config).run :upload_failed
+end
+
 task :compare do
   config = read_config_and_check.call
   JpegCompare.new(config).run :process
-end
-
-task :find do
-  config = read_config_and_check.call
-  JpegRecompress.new(config).run :find
 end
 
 task :status do

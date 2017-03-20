@@ -43,6 +43,8 @@ class JpegProcess
       when :find then find_files
       when :process then process_internal
       when :process_failed then process_internal(for_failed: true)
+      when :upload then upload_internal
+      when :upload_failed then upload_internal(for_failed: true)
       end
 
       print_completed
@@ -95,6 +97,31 @@ class JpegProcess
       end
 
       process_files(rows)
+      GC.start
+    end
+
+    complete_time = Time.now
+  rescue StandardError => e
+    logger.error e
+  end
+
+  def upload_internal(for_failed: false)
+    active_start_time, active_end_time = config.active_start_end
+
+    filename_enumerator = if for_failed
+                            database.find_failed_each(config.batch_count)
+                          else
+                            database.find_not_processed_each(config.batch_count)
+                          end
+    filename_enumerator.each do |rows|
+      loop do
+        time_now = Time.now
+        active_start_time, active_end_time = config.active_start_end if active_end_time < time_now
+        break if time_now.between?(active_start_time, active_end_time)
+        sleep 60
+      end
+
+      upload_files(rows)
       GC.start
     end
 

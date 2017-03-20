@@ -6,7 +6,7 @@ class JpegRecompress < JpegProcess
 
   def initialize(config)
     super(config, Jimson::Server.new(self, host: 'localhost', port: 8998), RecompressDb.new)
-    @s3_client = S3Client.new
+    @s3_clients = Array.new(config.thread_count) { S3Client.new }
   end
 
   def status
@@ -64,8 +64,7 @@ class JpegRecompress < JpegProcess
         end
 
         upload_to_s3(tmp_filepath, relative_filepath)
-      rescue StandardError => e
-        # logger.error "fail: #{src_filepath}", e
+      rescue StandardError
         comp_size = -1
       ensure
         if !config.dry_run && config.dst_dir && (compressed || config.src_dir != config.dst_dir)
@@ -79,6 +78,39 @@ class JpegRecompress < JpegProcess
           Utils.print_fail
         else
           Utils.print_dot_or_skip(compressed)
+        end
+      end
+
+      { id: row[:id], comp_size: comp_size }
+    end
+
+    print(' '.colorize(:white).on_white)
+
+    database.transaction do
+      results.compact.each do |result|
+        database.update result
+      end
+    end
+  end
+
+  def upload_files(rows)
+    results = Parallel.map(rows, in_threads: config.thread_count) do |row|
+      src_filepath = row[:filename]
+      return nil unless File.exist?(src_filepath)
+
+      relative_filepath = Pathname.new(src_filepath).relative_path_from(Pathname.new(config.src_dir))
+      orig_size = row[:orig_size]
+      comp_size = row[:comp_size] == -1 ? -1 : orig_size
+
+      begin
+        upload_to_s3(src_filepath, relative_filepath)
+      rescue StandardError
+        comp_size = -1
+      ensure
+        if comp_size == -1
+          Utils.print_fail
+        else
+          Utils.print_dot_or_skip(false)
         end
       end
 
@@ -112,7 +144,10 @@ class JpegRecompress < JpegProcess
   end
 
   def upload_to_s3(full_path, key)
-    @s3_client.put_object(full_path, key) unless config.dry_run
+    return if config.dry_run
+
+    s3_client = @s3_clients[Parallel.worker_number]
+    s3_client.put_object(full_path, key)
   end
 
   def copy_file_to_dst(from, dst)

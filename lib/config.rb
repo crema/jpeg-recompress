@@ -11,9 +11,9 @@ class Config
     @dst_dir = config['dst_dir']
     @tmp_dir = config.fetch('tmp_dir', '/run/shm')
 
-    @thread_count = config.fetch('thread_count', 1)
-    @thread_count = 1 if @thread_count.zero?
-    @batch_count = config.fetch('batch_count', 100)
+    @thread_count = config.fetch('thread_count', 4)
+    @thread_count = 4 if @thread_count.zero?
+    @batch_count = config.fetch('batch_count', 1000)
 
     # time range for finding target files
     @before = config.fetch('before', Time.now).to_time

@@ -46,7 +46,7 @@ class Database
       loop do
         rows = images.where(nil_column_name => nil)
                      .where('id > ?', last_id)
-                     .select(:id, :md5, :filename, :orig_size, :is_jpeg, :ctime)
+                     .select(:id, :md5, :filename, :orig_size, :comp_size, :is_jpeg, :ctime)
                      .order(:id)
                      .limit(batch_size)
                      .all
@@ -120,7 +120,7 @@ class RecompressDb < Database
       loop do
         rows = images.where(comp_size: -1)
                      .where('id > ?', last_id)
-                     .select(:id, :md5, :filename, :orig_size, :is_jpeg, :ctime)
+                     .select(:id, :md5, :filename, :orig_size, :comp_size, :is_jpeg, :ctime)
                      .order(:id)
                      .limit(batch_size)
                      .all
